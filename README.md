@@ -99,6 +99,8 @@ npm run build
 
 ## Деплой на Cloudflare Pages
 
+Сайтът е достъпен на [akt16.org](https://akt16.org).
+
 Свържете GitHub репозиторито директно в Cloudflare:
 
 1. Отворете [Cloudflare Dashboard](https://dash.cloudflare.com/) → Workers & Pages → Create → Pages → Connect to Git

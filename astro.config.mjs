@@ -5,6 +5,6 @@ import sitemap from '@astrojs/sitemap';
 
 // https://astro.build/config
 export default defineConfig({
-  site: "https://act16-tracker.pages.dev",
+  site: "https://akt16.org",
   integrations: [sitemap()],
 });
