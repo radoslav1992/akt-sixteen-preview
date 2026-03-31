@@ -1,0 +1,878 @@
+---
+import Base from "../../layouts/Base.astro";
+import {
+  getRegister,
+  getRecords,
+  getUniqueDistricts,
+  type RegisterId,
+} from "../../lib/data";
+
+export function getStaticPaths() {
+  return [{ params: { id: "act16" } }, { params: { id: "permits" } }];
+}
+
+const registerId = Astro.params.id as RegisterId;
+const register = getRegister(registerId);
+const records = getRecords(registerId);
+const districts = getUniqueDistricts(registerId);
+const isPermits = registerId === "permits";
+const metaLabel = isPermits ? "Възложител" : "Надзор";
+---
+
+<Base title={`${register.shortLabel} — Акт 16 Тракер`}>
+  <nav class="register-tabs">
+    <a href="/register/act16" class:list={["tab", { active: registerId === "act16" }]}>
+      Акт 16
+    </a>
+    <a href="/register/permits" class:list={["tab", { active: registerId === "permits" }]}>
+      Разрешения за строеж
+    </a>
+  </nav>
+
+  <section class="page-header">
+    <h1>{register.label}</h1>
+    <p id="results-count">{records.length} записа</p>
+  </section>
+
+  <!-- Filters -->
+  <div class="filters-panel">
+    <div class="filters-row">
+      <div class="filter-group filter-group--search">
+        <label for="search-input">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+          Търсене
+        </label>
+        <input
+          type="search"
+          id="search-input"
+          placeholder="обект, адрес, издател, номер..."
+          autocomplete="off"
+        />
+      </div>
+      <div class="filter-group">
+        <label for="region-select">Район</label>
+        <select id="region-select">
+          <option value="">Всички ({records.length})</option>
+          {districts.map((d) => (
+            <option value={d}>{d}</option>
+          ))}
+        </select>
+      </div>
+      <div class="filter-group">
+        <label for="date-from">От дата</label>
+        <input type="date" id="date-from" />
+      </div>
+      <div class="filter-group">
+        <label for="date-to">До дата</label>
+        <input type="date" id="date-to" />
+      </div>
+      <button id="clear-filters" class="btn btn--outline" type="button">Изчисти</button>
+    </div>
+
+    <div class="active-filters" id="active-filters"></div>
+  </div>
+
+  <!-- Mobile card list -->
+  <div class="mobile-list" id="mobile-list"></div>
+
+  <!-- Desktop table -->
+  <div class="table-wrap card">
+    <table id="data-table">
+      <colgroup>
+        <col class="col-number" />
+        <col class="col-date" />
+        <col class="col-object" />
+        <col class="col-region" />
+        <col class="col-meta" />
+        <col class="col-scope" />
+      </colgroup>
+      <thead>
+        <tr>
+          <th class="sortable" data-sort="number">
+            <span>№</span>
+            <span class="sort-icon"></span>
+          </th>
+          <th class="sortable" data-sort="date">
+            <span>Дата</span>
+            <span class="sort-icon"></span>
+          </th>
+          <th class="sortable" data-sort="object">
+            <span>Строеж / Обект</span>
+            <span class="sort-icon"></span>
+          </th>
+          <th class="sortable" data-sort="region">
+            <span>Район</span>
+            <span class="sort-icon"></span>
+          </th>
+          <th class="sortable" data-sort="meta">
+            <span>{metaLabel}</span>
+            <span class="sort-icon"></span>
+          </th>
+          <th>Обхват</th>
+        </tr>
+      </thead>
+      <tbody id="table-body"></tbody>
+    </table>
+  </div>
+
+  <!-- Pagination -->
+  <nav class="pagination" id="pagination" aria-label="Страници"></nav>
+
+  <script
+    id="register-meta"
+    type="application/json"
+    set:html={JSON.stringify({ metaLabel, registerId, totalRecords: records.length })}
+  />
+</Base>
+
+<script>
+  const PAGE_SIZE = 30;
+
+  const meta = JSON.parse(document.getElementById("register-meta")!.textContent!);
+  const registerId = meta.registerId;
+  let allRecords: any[] = [];
+
+  const searchInput = document.getElementById("search-input") as HTMLInputElement;
+  const regionSelect = document.getElementById("region-select") as HTMLSelectElement;
+  const dateFrom = document.getElementById("date-from") as HTMLInputElement;
+  const dateTo = document.getElementById("date-to") as HTMLInputElement;
+  const clearBtn = document.getElementById("clear-filters")!;
+  const resultsCount = document.getElementById("results-count")!;
+  const tableBody = document.getElementById("table-body")!;
+  const mobileList = document.getElementById("mobile-list")!;
+  const paginationEl = document.getElementById("pagination")!;
+  const activeFiltersEl = document.getElementById("active-filters")!;
+  const headers = document.querySelectorAll<HTMLTableCellElement>("th.sortable");
+
+  let currentPage = 1;
+  let sortField = "date";
+  let sortDir: "asc" | "desc" = "desc";
+  let filtered: typeof allRecords = [];
+
+  function parseBgDate(s: string): number {
+    const [d, m, y] = s.split(".");
+    return new Date(+y, +m - 1, +d).getTime();
+  }
+
+  function toIsoDate(bgDate: string): string {
+    const [d, m, y] = bgDate.split(".");
+    return `${y}-${m}-${d}`;
+  }
+
+  function applyFilters() {
+    const query = searchInput.value.toLowerCase().trim();
+    const region = regionSelect.value;
+    const fromTs = dateFrom.value ? new Date(dateFrom.value).getTime() : 0;
+    const toTs = dateTo.value ? new Date(dateTo.value + "T23:59:59").getTime() : Infinity;
+
+    filtered = allRecords.filter((r: any) => {
+      if (region && r.r !== region) return false;
+
+      const ts = parseBgDate(r.d);
+      if (ts < fromTs || ts > toTs) return false;
+
+      if (query) {
+        const haystack = `${r.n} ${r.o} ${r.r} ${r.m} ${r.s}`.toLowerCase();
+        const terms = query.split(/\s+/);
+        if (!terms.every((t: string) => haystack.includes(t))) return false;
+      }
+      return true;
+    });
+
+    applySort();
+  }
+
+  function applySort() {
+    const dir = sortDir === "asc" ? 1 : -1;
+
+    filtered.sort((a: any, b: any) => {
+      let va: any, vb: any;
+      switch (sortField) {
+        case "number":
+          va = parseInt(a.n) || 0;
+          vb = parseInt(b.n) || 0;
+          break;
+        case "date":
+          va = parseBgDate(a.d);
+          vb = parseBgDate(b.d);
+          break;
+        case "object":
+          va = a.o.toLowerCase();
+          vb = b.o.toLowerCase();
+          break;
+        case "region":
+          va = a.r.toLowerCase();
+          vb = b.r.toLowerCase();
+          break;
+        case "meta":
+          va = a.m.toLowerCase();
+          vb = b.m.toLowerCase();
+          break;
+        default:
+          return 0;
+      }
+      if (va < vb) return -1 * dir;
+      if (va > vb) return 1 * dir;
+      return 0;
+    });
+
+    currentPage = 1;
+    render();
+  }
+
+  function render() {
+    const total = filtered.length;
+    const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    currentPage = Math.min(currentPage, totalPages);
+    const start = (currentPage - 1) * PAGE_SIZE;
+    const page = filtered.slice(start, start + PAGE_SIZE);
+
+    resultsCount.textContent = `${total} записа`;
+
+    if (page.length === 0) {
+      tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Няма намерени записи</td></tr>`;
+      mobileList.innerHTML = `<p class="empty-state-mobile">Няма намерени записи</p>`;
+    } else {
+      tableBody.innerHTML = page
+        .map(
+          (r: any) => `<tr>
+            <td class="cell-number">${esc(r.n)}</td>
+            <td class="cell-date">${esc(r.d)}</td>
+            <td class="cell-object">${esc(truncate(r.o, 180))}</td>
+            <td>${r.r ? `<span class="badge badge--district">${esc(r.r)}</span>` : '<span class="text-muted">—</span>'}</td>
+            <td class="cell-meta">${esc(r.m || "—")}</td>
+            <td class="cell-scope">${esc(truncate(r.s, 100))}</td>
+          </tr>`
+        )
+        .join("");
+
+      mobileList.innerHTML = page
+        .map(
+          (r: any) => `<div class="m-card card">
+            <div class="m-card__head">
+              <span class="m-card__num">№ ${esc(r.n)}</span>
+              <span class="m-card__date">${esc(r.d)}</span>
+            </div>
+            <p class="m-card__obj">${esc(truncate(r.o, 140))}</p>
+            <div class="m-card__foot">
+              ${r.r ? `<span class="badge badge--district">${esc(r.r)}</span>` : ""}
+              ${r.m ? `<span class="m-card__meta">${esc(truncate(r.m, 60))}</span>` : ""}
+            </div>
+          </div>`
+        )
+        .join("");
+    }
+
+    document.querySelectorAll(".badge--district").forEach((el) => {
+      el.addEventListener("click", () => {
+        regionSelect.value = el.textContent!.trim();
+        onFilterChange();
+      });
+      (el as HTMLElement).style.cursor = "pointer";
+    });
+
+    // Sort indicators
+    headers.forEach((th) => {
+      const icon = th.querySelector(".sort-icon")!;
+      if (th.dataset.sort === sortField) {
+        th.classList.add("sorted");
+        icon.textContent = sortDir === "asc" ? " ▲" : " ▼";
+      } else {
+        th.classList.remove("sorted");
+        icon.textContent = "";
+      }
+    });
+
+    // Pagination
+    renderPagination(totalPages);
+
+    // Active filter chips
+    renderActiveFilters();
+
+    // URL sync
+    syncUrl();
+  }
+
+  function renderPagination(totalPages: number) {
+    if (totalPages <= 1) {
+      paginationEl.innerHTML = "";
+      return;
+    }
+
+    const pages = buildPageNumbers(currentPage, totalPages);
+
+    paginationEl.innerHTML = `
+      <button class="pg-btn" data-page="${currentPage - 1}" ${currentPage <= 1 ? "disabled" : ""}>← Предишна</button>
+      <div class="pg-numbers">
+        ${pages
+          .map((p) =>
+            p === "..."
+              ? `<span class="pg-ellipsis">…</span>`
+              : `<button class="pg-num ${p === currentPage ? "pg-num--active" : ""}" data-page="${p}">${p}</button>`
+          )
+          .join("")}
+      </div>
+      <button class="pg-btn" data-page="${currentPage + 1}" ${currentPage >= totalPages ? "disabled" : ""}>Следваща →</button>
+    `;
+
+    paginationEl.querySelectorAll("[data-page]").forEach((btn) =>
+      btn.addEventListener("click", () => {
+        currentPage = parseInt((btn as HTMLElement).dataset.page!);
+        render();
+        document.getElementById("data-table")!.scrollIntoView({ behavior: "smooth", block: "start" });
+      })
+    );
+  }
+
+  function buildPageNumbers(current: number, total: number): (number | string)[] {
+    if (total <= 7) return Array.from({ length: total }, (_, i) => i + 1);
+    const pages: (number | string)[] = [1];
+    if (current > 3) pages.push("...");
+    for (let i = Math.max(2, current - 1); i <= Math.min(total - 1, current + 1); i++) {
+      pages.push(i);
+    }
+    if (current < total - 2) pages.push("...");
+    pages.push(total);
+    return pages;
+  }
+
+  function renderActiveFilters() {
+    const chips: string[] = [];
+    if (regionSelect.value) chips.push(`<button class="chip" data-clear="region">Район: ${esc(regionSelect.value)} ×</button>`);
+    if (searchInput.value) chips.push(`<button class="chip" data-clear="search">Търсене: „${esc(searchInput.value)}" ×</button>`);
+    if (dateFrom.value) chips.push(`<button class="chip" data-clear="dateFrom">От: ${dateFrom.value} ×</button>`);
+    if (dateTo.value) chips.push(`<button class="chip" data-clear="dateTo">До: ${dateTo.value} ×</button>`);
+
+    activeFiltersEl.innerHTML = chips.join("");
+    activeFiltersEl.querySelectorAll(".chip").forEach((chip) =>
+      chip.addEventListener("click", () => {
+        const target = (chip as HTMLElement).dataset.clear;
+        if (target === "region") regionSelect.value = "";
+        if (target === "search") searchInput.value = "";
+        if (target === "dateFrom") dateFrom.value = "";
+        if (target === "dateTo") dateTo.value = "";
+        onFilterChange();
+      })
+    );
+  }
+
+  function syncUrl() {
+    const params = new URLSearchParams();
+    if (regionSelect.value) params.set("region", regionSelect.value);
+    if (searchInput.value) params.set("q", searchInput.value);
+    if (dateFrom.value) params.set("from", dateFrom.value);
+    if (dateTo.value) params.set("to", dateTo.value);
+    if (sortField !== "date" || sortDir !== "desc") params.set("sort", `${sortField}-${sortDir}`);
+    if (currentPage > 1) params.set("page", String(currentPage));
+
+    const qs = params.toString();
+    const newUrl = `/register/${registerId}${qs ? "?" + qs : ""}`;
+    history.replaceState(null, "", newUrl);
+  }
+
+  function restoreFromUrl() {
+    const params = new URLSearchParams(window.location.search);
+    if (params.has("region")) regionSelect.value = params.get("region")!;
+    if (params.has("q")) searchInput.value = params.get("q")!;
+    if (params.has("from")) dateFrom.value = params.get("from")!;
+    if (params.has("to")) dateTo.value = params.get("to")!;
+    if (params.has("sort")) {
+      const [f, d] = params.get("sort")!.split("-");
+      sortField = f;
+      sortDir = (d as "asc" | "desc") || "desc";
+    }
+    if (params.has("page")) currentPage = parseInt(params.get("page")!) || 1;
+  }
+
+  function esc(s: string): string {
+    const d = document.createElement("div");
+    d.textContent = s;
+    return d.innerHTML;
+  }
+
+  function truncate(s: string, max: number): string {
+    return s.length > max ? s.slice(0, max) + "…" : s;
+  }
+
+  let debounceTimer: number;
+  function onFilterChange() {
+    clearTimeout(debounceTimer);
+    debounceTimer = window.setTimeout(() => {
+      applyFilters();
+    }, 120);
+  }
+
+  // Event listeners
+  searchInput.addEventListener("input", onFilterChange);
+  regionSelect.addEventListener("change", onFilterChange);
+  dateFrom.addEventListener("change", onFilterChange);
+  dateTo.addEventListener("change", onFilterChange);
+
+  clearBtn.addEventListener("click", () => {
+    searchInput.value = "";
+    regionSelect.value = "";
+    dateFrom.value = "";
+    dateTo.value = "";
+    sortField = "date";
+    sortDir = "desc";
+    onFilterChange();
+  });
+
+  headers.forEach((th) => {
+    th.addEventListener("click", () => {
+      const field = th.dataset.sort!;
+      if (sortField === field) {
+        sortDir = sortDir === "asc" ? "desc" : "asc";
+      } else {
+        sortField = field;
+        sortDir = field === "date" || field === "number" ? "desc" : "asc";
+      }
+      applySort();
+    });
+  });
+
+  // Keyboard shortcut: focus search with /
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+      e.preventDefault();
+      searchInput.focus();
+    }
+  });
+
+  // Init: fetch data then render
+  async function init() {
+    tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Зареждане…</td></tr>`;
+    mobileList.innerHTML = `<p class="empty-state-mobile">Зареждане…</p>`;
+    try {
+      const res = await fetch(`/api/${registerId}.json`);
+      allRecords = await res.json();
+      resultsCount.textContent = `${allRecords.length} записа`;
+    } catch {
+      tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Грешка при зареждане на данните</td></tr>`;
+      mobileList.innerHTML = `<p class="empty-state-mobile">Грешка при зареждане</p>`;
+      return;
+    }
+    restoreFromUrl();
+    applyFilters();
+  }
+
+  init();
+</script>
+
+<style>
+  /* --- Tabs --- */
+  .register-tabs {
+    display: inline-flex;
+    gap: 0.2rem;
+    margin-bottom: 1rem;
+    background: var(--color-border-light);
+    padding: 0.2rem;
+    border-radius: var(--radius);
+    width: 100%;
+  }
+
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-radius: calc(var(--radius) - 2px);
+    transition: all var(--transition);
+  }
+
+  .tab:hover { color: var(--color-text); }
+
+  .tab.active {
+    color: var(--color-primary);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  /* --- Page header --- */
+  .page-header { margin-bottom: 1rem; }
+
+  .page-header h1 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .page-header p {
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    margin-top: 0.2rem;
+    font-weight: 500;
+  }
+
+  /* --- Filters --- */
+  .filters-panel {
+    margin-bottom: 1rem;
+  }
+
+  .filters-row {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  .filter-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.2rem;
+    width: 100%;
+  }
+
+  .filter-group--search {
+    flex: 1;
+  }
+
+  .filter-group label {
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    display: flex;
+    align-items: center;
+    gap: 0.3rem;
+  }
+
+  .filter-group label svg { opacity: 0.5; }
+
+  .filter-group input,
+  .filter-group select {
+    height: 42px;
+  }
+
+  .btn {
+    font-family: inherit;
+    padding: 0 1.25rem;
+    height: 42px;
+    width: 100%;
+    background: var(--color-primary);
+    color: white;
+    border: none;
+    border-radius: var(--radius);
+    font-size: 0.85rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all var(--transition);
+    white-space: nowrap;
+  }
+
+  .btn:hover {
+    background: var(--color-primary-hover);
+  }
+
+  .btn--outline {
+    background: transparent;
+    color: var(--color-text-muted);
+    border: 1.5px solid var(--color-border);
+  }
+
+  .btn--outline:hover {
+    background: var(--color-surface);
+    color: var(--color-text);
+    border-color: var(--color-text-muted);
+  }
+
+  /* --- Active filter chips --- */
+  .active-filters {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.5rem;
+    min-height: 0;
+  }
+
+  .active-filters:empty { display: none; }
+
+  :global(.chip) {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.25rem;
+    padding: 0.25rem 0.7rem;
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    border: 1.5px solid rgba(124, 58, 237, 0.15);
+    border-radius: var(--radius-full);
+    font-size: 0.73rem;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: all var(--transition);
+  }
+
+  :global(.chip:hover) {
+    background: #ede9fe;
+    border-color: var(--color-primary);
+  }
+
+  /* --- Mobile card list --- */
+  .mobile-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+  }
+
+  :global(.m-card) {
+    padding: 1rem;
+  }
+
+  :global(.m-card__head) {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.4rem;
+  }
+
+  :global(.m-card__num) {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: var(--color-primary);
+  }
+
+  :global(.m-card__date) {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-weight: 500;
+  }
+
+  :global(.m-card__obj) {
+    font-size: 0.82rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+    margin-bottom: 0.5rem;
+  }
+
+  :global(.m-card__foot) {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    flex-wrap: wrap;
+  }
+
+  :global(.m-card__meta) {
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+    font-weight: 500;
+  }
+
+  :global(.empty-state-mobile) {
+    text-align: center;
+    padding: 2.5rem 1rem;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+  }
+
+  /* --- Desktop table (hidden on mobile) --- */
+  .table-wrap {
+    display: none;
+    padding: 0;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .table-wrap table {
+    table-layout: fixed;
+    min-width: 900px;
+  }
+
+  .col-number { width: 60px; }
+  .col-date   { width: 100px; }
+  .col-object { width: 34%; }
+  .col-region { width: 110px; }
+  .col-meta   { width: 18%; }
+  .col-scope  { width: 20%; }
+
+  :global(th.sortable) {
+    cursor: pointer;
+    user-select: none;
+    transition: color var(--transition);
+  }
+
+  :global(th.sortable:hover) { color: var(--color-primary); }
+  :global(th.sortable span) { display: inline; }
+  :global(th.sorted) { color: var(--color-primary); }
+  :global(.sort-icon) { font-size: 0.7rem; opacity: 0.7; }
+
+  .cell-number {
+    font-family: var(--font-mono);
+    font-weight: 600;
+    font-size: 0.85rem;
+    white-space: nowrap;
+    color: var(--color-primary);
+  }
+
+  .cell-date {
+    white-space: nowrap;
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    font-weight: 500;
+  }
+
+  :global(.cell-object) {
+    font-size: 0.825rem;
+    line-height: 1.45;
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  :global(.cell-meta) {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  :global(.cell-scope) {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    overflow-wrap: break-word;
+    word-break: break-word;
+    white-space: normal;
+  }
+
+  :global(.text-muted) { color: var(--color-text-muted); }
+
+  :global(.empty-state) {
+    text-align: center;
+    padding: 3rem 1rem !important;
+    color: var(--color-text-muted);
+    font-size: 0.95rem;
+  }
+
+  /* --- Pagination --- */
+  .pagination {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    margin-top: 1rem;
+    padding: 0.5rem 0;
+    flex-wrap: wrap;
+  }
+
+  :global(.pg-btn) {
+    font-family: inherit;
+    padding: 0.45rem 0.75rem;
+    font-size: 0.8rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  :global(.pg-btn:hover:not(:disabled)) {
+    background: var(--color-primary-light);
+    border-color: var(--color-primary);
+  }
+
+  :global(.pg-btn:disabled) {
+    opacity: 0.35;
+    cursor: default;
+  }
+
+  :global(.pg-numbers) {
+    display: flex;
+    align-items: center;
+    gap: 0.2rem;
+  }
+
+  :global(.pg-num) {
+    font-family: inherit;
+    width: 34px;
+    height: 34px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    background: transparent;
+    border: 1.5px solid transparent;
+    border-radius: var(--radius);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  :global(.pg-num:hover) {
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+  }
+
+  :global(.pg-num--active) {
+    background: linear-gradient(135deg, var(--color-primary), #9333ea);
+    color: white;
+    border-color: transparent;
+    font-weight: 700;
+    box-shadow: 0 2px 8px rgba(124, 58, 237, 0.25);
+  }
+
+  :global(.pg-num--active:hover) {
+    background: linear-gradient(135deg, var(--color-primary), #9333ea);
+    color: white;
+  }
+
+  :global(.pg-ellipsis) {
+    padding: 0 0.2rem;
+    color: var(--color-text-muted);
+  }
+
+  /* --- Desktop breakpoint --- */
+  @media (min-width: 768px) {
+    .register-tabs {
+      width: auto;
+      margin-bottom: 1.5rem;
+      padding: 0.25rem;
+    }
+
+    .tab {
+      flex: none;
+      padding: 0.55rem 1.25rem;
+      font-size: 0.875rem;
+    }
+
+    .page-header { margin-bottom: 1.25rem; }
+    .page-header h1 { font-size: 1.5rem; }
+
+    .filters-row {
+      flex-direction: row;
+      align-items: flex-end;
+      gap: 0.75rem;
+    }
+
+    .filter-group {
+      width: auto;
+    }
+
+    .filter-group--search {
+      min-width: 220px;
+    }
+
+    .filter-group input,
+    .filter-group select {
+      height: 38px;
+    }
+
+    .btn {
+      width: auto;
+      height: 38px;
+    }
+
+    .mobile-list { display: none; }
+    .table-wrap { display: block; }
+
+    .pagination { gap: 0.75rem; margin-top: 1.25rem; padding: 0.75rem 0; }
+    :global(.pg-btn) { padding: 0.45rem 1rem; font-size: 0.85rem; }
+    :global(.pg-num) { width: 36px; height: 36px; font-size: 0.85rem; }
+  }
+</style>

@@ -1,0 +1,253 @@
+---
+import Base from "../layouts/Base.astro";
+import {
+  getRegister,
+  getDistrictCounts,
+  getMonthlyBreakdown,
+  getCombinedStats,
+  type RegisterId,
+} from "../lib/data";
+
+const url = new URL(Astro.request.url);
+const activeTab = (url.searchParams.get("tab") as RegisterId) || "act16";
+
+const register = getRegister(activeTab);
+const stats = getCombinedStats();
+
+const districtCounts = [...getDistrictCounts(activeTab).entries()].sort(
+  (a, b) => b[1] - a[1]
+);
+
+const monthlyBreakdown = [...getMonthlyBreakdown(activeTab).entries()].sort(
+  (a, b) => {
+    const [mA, yA] = a[0].split(".");
+    const [mB, yB] = b[0].split(".");
+    return +yB - +yA || +mB - +mA;
+  }
+);
+
+const MONTH_NAMES: Record<string, string> = {
+  "01": "Януари",
+  "02": "Февруари",
+  "03": "Март",
+  "04": "Април",
+  "05": "Май",
+  "06": "Юни",
+  "07": "Юли",
+  "08": "Август",
+  "09": "Септември",
+  "10": "Октомври",
+  "11": "Ноември",
+  "12": "Декември",
+};
+
+function formatMonth(key: string): string {
+  const [month, year] = key.split(".");
+  return `${MONTH_NAMES[month] ?? month} ${year}`;
+}
+
+const maxDistrict = districtCounts[0]?.[1] ?? 1;
+const maxMonthly = Math.max(...monthlyBreakdown.map(([, c]) => c), 1);
+const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+---
+
+<Base title="Статистика — Акт 16 Тракер">
+  <section class="page-header">
+    <h1>Статистика</h1>
+    <p>
+      {register.total} записа в регистър „{register.shortLabel}". Данни към {updatedDate}.
+    </p>
+  </section>
+
+  <nav class="register-tabs">
+    <a href="/stats?tab=act16" class:list={["tab", { active: activeTab === "act16" }]}>
+      Акт 16 ({stats.totalAct16})
+    </a>
+    <a href="/stats?tab=permits" class:list={["tab", { active: activeTab === "permits" }]}>
+      Разрешения ({stats.totalPermits})
+    </a>
+  </nav>
+
+  <div class="stats-layout">
+    <section class="card">
+      <h2 class="chart-title">По район</h2>
+      <div class="bar-chart">
+        {districtCounts.map(([name, count]) => (
+          <a
+            href={`/register/${activeTab}?region=${encodeURIComponent(name)}`}
+            class="bar-row"
+          >
+            <span class="bar-label">{name}</span>
+            <div class="bar-track">
+              <div
+                class:list={["bar-fill", { "bar-fill--accent": activeTab === "permits" }]}
+                style={`width: ${(count / maxDistrict) * 100}%`}
+              />
+            </div>
+            <span class="bar-value">{count}</span>
+          </a>
+        ))}
+      </div>
+    </section>
+
+    <section class="card">
+      <h2 class="chart-title">По месец</h2>
+      <div class="bar-chart">
+        {monthlyBreakdown.map(([key, count]) => (
+          <div class="bar-row">
+            <span class="bar-label">{formatMonth(key)}</span>
+            <div class="bar-track">
+              <div
+                class:list={["bar-fill", { "bar-fill--accent": activeTab === "permits" }]}
+                style={`width: ${(count / maxMonthly) * 100}%`}
+              />
+            </div>
+            <span class="bar-value">{count}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  </div>
+</Base>
+
+<style>
+  .page-header {
+    margin-bottom: 1rem;
+  }
+
+  .page-header h1 {
+    font-size: 1.25rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+  }
+
+  .page-header p {
+    color: var(--color-text-muted);
+    font-size: 0.82rem;
+    margin-top: 0.2rem;
+    font-weight: 500;
+  }
+
+  .register-tabs {
+    display: inline-flex;
+    gap: 0.2rem;
+    margin-bottom: 1rem;
+    background: var(--color-border-light);
+    padding: 0.2rem;
+    border-radius: var(--radius);
+    width: 100%;
+  }
+
+  .tab {
+    flex: 1;
+    text-align: center;
+    padding: 0.5rem 0.5rem;
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    border-radius: calc(var(--radius) - 2px);
+    transition: all var(--transition);
+  }
+
+  .tab:hover { color: var(--color-text); }
+
+  .tab.active {
+    color: var(--color-primary);
+    background: var(--color-surface);
+    box-shadow: var(--shadow-sm);
+  }
+
+  .stats-layout {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 1rem;
+  }
+
+  .chart-title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 0.75rem;
+    padding-bottom: 0.6rem;
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
+  .bar-chart {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .bar-row {
+    display: grid;
+    grid-template-columns: 80px 1fr 35px;
+    align-items: center;
+    gap: 0.5rem;
+    padding: 0.3rem 0.25rem;
+    color: var(--color-text);
+    text-decoration: none;
+    border-radius: var(--radius);
+    transition: background var(--transition);
+  }
+
+  a.bar-row:hover {
+    background: var(--color-primary-light);
+  }
+
+  .bar-label {
+    font-size: 0.73rem;
+    font-weight: 600;
+    text-align: right;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .bar-track {
+    height: 18px;
+    background: var(--color-border-light);
+    border-radius: 5px;
+    overflow: hidden;
+  }
+
+  .bar-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-primary), #9333ea);
+    border-radius: 5px;
+    min-width: 4px;
+    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .bar-fill--accent {
+    background: linear-gradient(90deg, var(--color-accent), var(--color-coral));
+  }
+
+  .bar-value {
+    font-size: 0.73rem;
+    font-weight: 800;
+    font-family: var(--font-mono);
+    text-align: right;
+    color: var(--color-text);
+  }
+
+  @media (min-width: 640px) {
+    .page-header { margin-bottom: 1.5rem; }
+    .page-header h1 { font-size: 1.5rem; }
+    .page-header p { font-size: 0.9rem; }
+    .register-tabs { width: auto; margin-bottom: 1.5rem; padding: 0.25rem; }
+    .tab { flex: none; padding: 0.55rem 1.25rem; font-size: 0.875rem; }
+  }
+
+  @media (min-width: 768px) {
+    .stats-layout { grid-template-columns: 1fr 1fr; gap: 1.5rem; }
+    .bar-row { grid-template-columns: 120px 1fr 40px; gap: 0.75rem; padding: 0.35rem 0.5rem; }
+    .bar-label { font-size: 0.8rem; }
+    .bar-track { height: 22px; border-radius: 6px; }
+    .bar-fill { border-radius: 6px; }
+    .bar-value { font-size: 0.8rem; }
+    .chart-title { font-size: 1rem; margin-bottom: 1rem; }
+  }
+</style>

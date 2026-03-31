@@ -1,0 +1,207 @@
+---
+import Base from "./Base.astro";
+
+interface Props {
+  title: string;
+  description: string;
+  date: Date;
+  tags: string[];
+}
+
+const { title, description, date, tags } = Astro.props;
+
+const formattedDate = date.toLocaleDateString("bg-BG", {
+  day: "numeric",
+  month: "long",
+  year: "numeric",
+});
+
+const isoDate = date.toISOString();
+
+const structuredData = JSON.stringify({
+  "@context": "https://schema.org",
+  "@type": "BlogPosting",
+  headline: title,
+  description,
+  datePublished: isoDate,
+  author: { "@type": "Organization", name: "Акт 16 Тракер" },
+  publisher: { "@type": "Organization", name: "Акт 16 Тракер" },
+  inLanguage: "bg",
+  keywords: tags.join(", "),
+});
+---
+
+<Base title={`${title} — Акт 16 Тракер`} description={description}>
+  <script type="application/ld+json" set:html={structuredData} />
+
+  <article class="blog-post">
+    <header class="blog-post__header">
+      <div class="blog-post__meta">
+        <time datetime={isoDate}>{formattedDate}</time>
+        <span class="blog-post__separator">·</span>
+        <a href="/blog">Блог</a>
+      </div>
+      <h1 class="blog-post__title">{title}</h1>
+      <p class="blog-post__description">{description}</p>
+      <div class="blog-post__tags">
+        {tags.map((tag) => <span class="blog-tag">{tag}</span>)}
+      </div>
+    </header>
+
+    <div class="blog-post__content">
+      <slot />
+    </div>
+
+    <footer class="blog-post__footer">
+      <a href="/blog">&larr; Всички статии</a>
+    </footer>
+  </article>
+</Base>
+
+<style>
+  .blog-post {
+    max-width: 740px;
+    margin: 0 auto;
+  }
+
+  .blog-post__header {
+    margin-bottom: 2.5rem;
+    padding-bottom: 1.5rem;
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
+  .blog-post__meta {
+    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    margin-bottom: 0.85rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-weight: 600;
+  }
+
+  .blog-post__separator {
+    color: var(--color-border);
+  }
+
+  .blog-post__title {
+    font-size: 2.1rem;
+    font-weight: 800;
+    line-height: 1.2;
+    letter-spacing: -0.03em;
+    margin-bottom: 0.85rem;
+  }
+
+  .blog-post__description {
+    font-size: 1.1rem;
+    color: var(--color-text-muted);
+    line-height: 1.7;
+    font-weight: 500;
+  }
+
+  .blog-post__tags {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.4rem;
+    margin-top: 1.15rem;
+  }
+
+  .blog-tag {
+    display: inline-block;
+    padding: 0.25rem 0.7rem;
+    background: var(--color-primary-light);
+    color: var(--color-primary);
+    border-radius: var(--radius-full);
+    font-size: 0.73rem;
+    font-weight: 600;
+  }
+
+  .blog-post__content {
+    font-size: 1.02rem;
+    line-height: 1.85;
+    color: var(--color-text);
+  }
+
+  .blog-post__content :global(h2) {
+    font-size: 1.4rem;
+    font-weight: 800;
+    margin: 2.25rem 0 0.75rem;
+    letter-spacing: -0.02em;
+  }
+
+  .blog-post__content :global(h3) {
+    font-size: 1.15rem;
+    font-weight: 700;
+    margin: 1.75rem 0 0.5rem;
+  }
+
+  .blog-post__content :global(p) {
+    margin-bottom: 1.25rem;
+  }
+
+  .blog-post__content :global(ul),
+  .blog-post__content :global(ol) {
+    margin-bottom: 1.25rem;
+    padding-left: 1.5rem;
+  }
+
+  .blog-post__content :global(li) {
+    margin-bottom: 0.45rem;
+  }
+
+  .blog-post__content :global(strong) {
+    font-weight: 700;
+    color: var(--color-text);
+  }
+
+  .blog-post__content :global(a) {
+    color: var(--color-primary);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+    text-decoration-color: rgba(124, 58, 237, 0.3);
+    transition: text-decoration-color var(--transition);
+  }
+
+  .blog-post__content :global(a:hover) {
+    text-decoration-color: var(--color-primary);
+  }
+
+  .blog-post__content :global(table) {
+    margin: 1.5rem 0;
+    font-size: 0.875rem;
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+
+  .blog-post__content :global(blockquote) {
+    margin: 1.5rem 0;
+    padding: 1.15rem 1.35rem;
+    border-left: 4px solid;
+    border-image: linear-gradient(to bottom, var(--color-primary), var(--color-accent)) 1;
+    background: var(--color-primary-light);
+    border-radius: 0 var(--radius) var(--radius) 0;
+    color: var(--color-text-muted);
+    font-weight: 500;
+  }
+
+  .blog-post__content :global(h1) {
+    display: none;
+  }
+
+  .blog-post__footer {
+    margin-top: 3rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid var(--color-border-light);
+    font-size: 0.9rem;
+    font-weight: 600;
+  }
+
+  @media (max-width: 640px) {
+    .blog-post__title { font-size: 1.4rem; }
+    .blog-post__description { font-size: 0.95rem; }
+    .blog-post__content { font-size: 0.95rem; line-height: 1.75; }
+    .blog-post__content :global(h2) { font-size: 1.2rem; }
+    .blog-post__content :global(h3) { font-size: 1.05rem; }
+    .blog-post__content :global(table) { display: block; overflow-x: auto; }
+  }
+</style>
