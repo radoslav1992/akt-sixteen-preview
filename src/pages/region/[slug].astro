@@ -1,0 +1,384 @@
+---
+import Base from "../../layouts/Base.astro";
+import {
+  findRegionBySlug,
+  getRegionRecords,
+  getAllRegionsWithSlugs,
+  recordSlug,
+  type Record,
+} from "../../lib/data";
+
+export function getStaticPaths() {
+  return getAllRegionsWithSlugs().map((r) => ({
+    params: { slug: r.slug },
+    props: { regionName: r.name },
+  }));
+}
+
+const { regionName } = Astro.props as { regionName: string };
+
+if (!findRegionBySlug(Astro.params.slug!)) {
+  return new Response("Not found", { status: 404 });
+}
+
+const { act16, permits } = getRegionRecords(regionName);
+const recentAct16 = act16.slice(0, 12);
+const recentPermits = permits.slice(0, 12);
+
+const yearCounts = (records: Record[]) => {
+  const m = new Map<string, number>();
+  for (const r of records) {
+    const y = r.date.split(".")[2];
+    if (!y) continue;
+    m.set(y, (m.get(y) ?? 0) + 1);
+  }
+  return [...m.entries()].sort((a, b) => +b[0] - +a[0]).slice(0, 5);
+};
+
+const act16Years = yearCounts(act16);
+const permitYears = yearCounts(permits);
+
+const total = act16.length + permits.length;
+const description = `Регистър на разрешенията за строеж (${permits.length}) и удостоверенията за въвеждане в експлоатация Акт 16 (${act16.length}) в район ${regionName}, София. Данните се обновяват автоматично от НАГ.`;
+---
+
+<Base
+  title={`Акт 16 и разрешения за строеж в район ${regionName} — Акт 16 Тракер`}
+  description={description}
+>
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/">Начало</a>
+    <span class="breadcrumb__sep">/</span>
+    <span class="breadcrumb__current">Район {regionName}</span>
+  </nav>
+
+  <header class="region-hero">
+    <span class="region-hero__eyebrow">Район в София</span>
+    <h1>{regionName}</h1>
+    <p class="region-hero__lead">
+      {total} строителни документа в публичните регистри на НАГ — {act16.length} удостоверения Акт 16 и {permits.length} разрешения за строеж.
+    </p>
+  </header>
+
+  <div class="region-stats">
+    <a href={`/register/act16?region=${encodeURIComponent(regionName)}`} class="card region-stat">
+      <span class="region-stat__label">Акт 16</span>
+      <span class="region-stat__value">{act16.length}</span>
+      <span class="region-stat__cta">Виж всички &rarr;</span>
+    </a>
+    <a href={`/register/permits?region=${encodeURIComponent(regionName)}`} class="card region-stat region-stat--accent">
+      <span class="region-stat__label">Разрешения за строеж</span>
+      <span class="region-stat__value">{permits.length}</span>
+      <span class="region-stat__cta">Виж всички &rarr;</span>
+    </a>
+  </div>
+
+  {(act16Years.length > 0 || permitYears.length > 0) && (
+    <section class="region-section">
+      <h2>Издадени документи по години</h2>
+      <div class="years-grid">
+        {act16Years.length > 0 && (
+          <div class="card years-card">
+            <h3>Акт 16</h3>
+            <ul class="years-list">
+              {act16Years.map(([y, c]) => (
+                <li>
+                  <span class="years-list__year">{y}</span>
+                  <span class="years-list__count">{c}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+        {permitYears.length > 0 && (
+          <div class="card years-card">
+            <h3>Разрешения за строеж</h3>
+            <ul class="years-list">
+              {permitYears.map(([y, c]) => (
+                <li>
+                  <span class="years-list__year">{y}</span>
+                  <span class="years-list__count years-list__count--accent">{c}</span>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </div>
+    </section>
+  )}
+
+  {recentAct16.length > 0 && (
+    <section class="region-section">
+      <div class="region-section__head">
+        <h2>Последни Акт 16</h2>
+        <a href={`/register/act16?region=${encodeURIComponent(regionName)}`}>Виж всички &rarr;</a>
+      </div>
+      <div class="recent-grid">
+        {recentAct16.map((r) => (
+          <a href={`/register/act16/${recordSlug(r)}`} class="card recent-card">
+            <div class="recent-card__head">
+              <span class="recent-card__num">№ {r.number}</span>
+              <span class="recent-card__date">{r.date}</span>
+            </div>
+            <p class="recent-card__obj">{r.object.slice(0, 140)}{r.object.length > 140 ? "…" : ""}</p>
+            {r.constructionOversight && (
+              <p class="recent-card__meta">{r.constructionOversight}</p>
+            )}
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+
+  {recentPermits.length > 0 && (
+    <section class="region-section">
+      <div class="region-section__head">
+        <h2>Последни разрешения за строеж</h2>
+        <a href={`/register/permits?region=${encodeURIComponent(regionName)}`}>Виж всички &rarr;</a>
+      </div>
+      <div class="recent-grid">
+        {recentPermits.map((r) => (
+          <a href={`/register/permits/${recordSlug(r)}`} class="card recent-card">
+            <div class="recent-card__head">
+              <span class="recent-card__num">№ {r.number}</span>
+              <span class="recent-card__date">{r.date}</span>
+            </div>
+            <p class="recent-card__obj">{r.object.slice(0, 140)}{r.object.length > 140 ? "…" : ""}</p>
+            {r.employer && (
+              <p class="recent-card__meta">{r.employer}</p>
+            )}
+          </a>
+        ))}
+      </div>
+    </section>
+  )}
+</Base>
+
+<style>
+  .breadcrumb {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+  }
+  .breadcrumb a { color: var(--color-text-muted); font-weight: 600; }
+  .breadcrumb a:hover { color: var(--color-primary); }
+  .breadcrumb__sep { opacity: 0.4; }
+  .breadcrumb__current { color: var(--color-text); font-weight: 700; }
+
+  .region-hero { margin-bottom: 1.5rem; }
+
+  .region-hero__eyebrow {
+    display: inline-block;
+    font-size: 0.7rem;
+    font-weight: 700;
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+    padding: 0.25rem 0.7rem;
+    border-radius: var(--radius-full);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin-bottom: 0.55rem;
+  }
+
+  .region-hero h1 {
+    font-size: 1.85rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-coral));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.15;
+  }
+
+  .region-hero__lead {
+    color: var(--color-text-muted);
+    font-size: 0.92rem;
+    line-height: 1.65;
+    margin-top: 0.65rem;
+  }
+
+  .region-stats {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 0.75rem;
+    margin-bottom: 2rem;
+  }
+
+  .region-stat {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--color-text);
+    transition: all var(--transition);
+    text-align: left;
+  }
+
+  .region-stat:hover {
+    color: var(--color-text);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  .region-stat__label {
+    font-size: 0.72rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .region-stat__value {
+    font-size: 1.85rem;
+    font-weight: 800;
+    color: var(--color-primary);
+    line-height: 1.1;
+  }
+
+  .region-stat--accent .region-stat__value { color: var(--color-coral); }
+
+  .region-stat__cta {
+    font-size: 0.78rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    margin-top: 0.3rem;
+  }
+
+  .region-section { margin-bottom: 2.25rem; }
+
+  .region-section h2 {
+    font-size: 1.1rem;
+    font-weight: 700;
+    letter-spacing: -0.01em;
+    margin-bottom: 0.85rem;
+  }
+
+  .region-section__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    gap: 0.5rem;
+    margin-bottom: 0.85rem;
+  }
+
+  .region-section__head h2 { margin-bottom: 0; }
+
+  .region-section__head a {
+    font-size: 0.8rem;
+    font-weight: 600;
+    white-space: nowrap;
+  }
+
+  .years-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.75rem;
+  }
+
+  .years-card h3 {
+    font-size: 0.85rem;
+    font-weight: 700;
+    margin-bottom: 0.65rem;
+    color: var(--color-text-muted);
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+
+  .years-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+  }
+
+  .years-list li {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 0.35rem 0;
+    border-bottom: 1px dashed var(--color-border-light);
+  }
+
+  .years-list li:last-child { border-bottom: none; }
+
+  .years-list__year {
+    font-weight: 600;
+    font-size: 0.88rem;
+  }
+
+  .years-list__count {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.88rem;
+    color: var(--color-primary);
+  }
+
+  .years-list__count--accent { color: var(--color-coral); }
+
+  .recent-grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+  }
+
+  .recent-card {
+    display: block;
+    color: var(--color-text);
+    border-left: 3px solid transparent;
+    transition: all var(--transition);
+  }
+
+  .recent-card:hover {
+    color: var(--color-text);
+    border-left-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  .recent-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+  }
+
+  .recent-card__num {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: var(--color-primary);
+  }
+
+  .recent-card__date {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+
+  .recent-card__obj {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+  }
+
+  .recent-card__meta {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    margin-top: 0.45rem;
+    font-weight: 500;
+  }
+
+  @media (min-width: 640px) {
+    .region-hero h1 { font-size: 2.4rem; }
+    .region-hero__lead { font-size: 1rem; }
+    .region-stat__value { font-size: 2.25rem; }
+    .years-grid { grid-template-columns: 1fr 1fr; gap: 1rem; }
+    .recent-grid { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.85rem; }
+  }
+</style>
