@@ -76,6 +76,15 @@ export function getMonthlyBreakdown(registerId: RegisterId): Map<string, number>
   }, new Map<string, number>());
 }
 
+export function getYearlyBreakdown(registerId: RegisterId): Map<string, number> {
+  return getRecords(registerId).reduce((acc, r) => {
+    const [, , year] = r.date.split(".");
+    if (!year) return acc;
+    acc.set(year, (acc.get(year) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
+}
+
 export function getUniqueDistricts(registerId: RegisterId): string[] {
   return [
     ...new Set(getRecords(registerId).map((r) => r.region).filter(Boolean)),
@@ -123,4 +132,108 @@ export function getCombinedStats(): {
     totalDistricts: allDistricts.size,
     lastUpdated: latest,
   };
+}
+
+// --- URL slug helpers ---
+
+const CYRILLIC_TO_LATIN: { [k: string]: string } = {
+  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ж: "zh", з: "z",
+  и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p",
+  р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch",
+  ш: "sh", щ: "sht", ъ: "a", ь: "y", ю: "yu", я: "ya",
+};
+
+export function slugifyRegion(name: string): string {
+  return name
+    .toLowerCase()
+    .split("")
+    .map((c) => CYRILLIC_TO_LATIN[c] ?? (/[a-z0-9-]/.test(c) ? c : "-"))
+    .join("")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
+
+export function recordSlug(r: Record): string {
+  return `${r.number}-${r.date.replace(/\./g, "")}`;
+}
+
+export function findRecordBySlug(registerId: RegisterId, slug: string): Record | null {
+  return getRecords(registerId).find((r) => recordSlug(r) === slug) ?? null;
+}
+
+const CADASTRE_RE = /Идентификатор\s+КККР[^:]*:\s*([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)/i;
+
+export function extractCadastreId(scope: string): string | null {
+  const m = scope.match(CADASTRE_RE);
+  return m ? m[1] : null;
+}
+
+const ADDRESS_RE = /Адрес:\s*([^,]+(?:,\s*[^:,][^,]*)*?)(?=,\s*[А-Я][а-я]+:|$)/u;
+
+export function extractAddress(scope: string): string | null {
+  const m = scope.match(ADDRESS_RE);
+  return m ? m[1].trim() : null;
+}
+
+export function findRelatedRecords(record: Record, sourceRegister: RegisterId): {
+  sameCadastre: Record[];
+  otherRegister: Record[];
+} {
+  const cadastreId = extractCadastreId(record.scope);
+  if (!cadastreId) return { sameCadastre: [], otherRegister: [] };
+
+  const sameCadastre = getRecords(sourceRegister).filter(
+    (r) => r.number !== record.number && extractCadastreId(r.scope) === cadastreId
+  );
+
+  const otherId: RegisterId = sourceRegister === "act16" ? "permits" : "act16";
+  const otherRegister = getRecords(otherId).filter(
+    (r) => extractCadastreId(r.scope) === cadastreId
+  );
+
+  return { sameCadastre, otherRegister };
+}
+
+export function getTopParties(
+  registerId: RegisterId,
+  field: "employer" | "constructionOversight",
+  limit = 10
+): Array<[string, number]> {
+  const counts = getRecords(registerId).reduce((acc, r) => {
+    const v = (r[field] || "").trim();
+    if (!v) return acc;
+    acc.set(v, (acc.get(v) ?? 0) + 1);
+    return acc;
+  }, new Map<string, number>());
+
+  return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, limit);
+}
+
+export function getRegionRecords(region: string): {
+  act16: Record[];
+  permits: Record[];
+} {
+  return {
+    act16: getRecords("act16").filter((r) => r.region === region),
+    permits: getRecords("permits").filter((r) => r.region === region),
+  };
+}
+
+export function getAllRegionsWithSlugs(): Array<{ name: string; slug: string; act16: number; permits: number }> {
+  const act16Counts = getDistrictCounts("act16");
+  const permitsCounts = getDistrictCounts("permits");
+  const all = new Set([...act16Counts.keys(), ...permitsCounts.keys()]);
+  return [...all]
+    .map((name) => ({
+      name,
+      slug: slugifyRegion(name),
+      act16: act16Counts.get(name) ?? 0,
+      permits: permitsCounts.get(name) ?? 0,
+    }))
+    .sort((a, b) => b.act16 + b.permits - (a.act16 + a.permits));
+}
+
+export function findRegionBySlug(slug: string): string | null {
+  const all = getAllRegionsWithSlugs();
+  return all.find((r) => r.slug === slug)?.name ?? null;
 }

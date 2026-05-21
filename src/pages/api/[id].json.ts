@@ -19,6 +19,7 @@ function toClientRecord(r: Record, registerId: RegisterId) {
     r: r.region,
     m: truncate(meta, MAX_META_LEN),
     s: truncate(r.scope, MAX_SCOPE_LEN),
+    k: `${r.number}-${r.date.replace(/\./g, "")}`,
   };
 }
 

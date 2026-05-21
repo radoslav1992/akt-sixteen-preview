@@ -1,0 +1,403 @@
+---
+import Base from "../../../layouts/Base.astro";
+import {
+  getRegister,
+  findRecordBySlug,
+  findRelatedRecords,
+  extractCadastreId,
+  extractAddress,
+  recordSlug,
+  slugifyRegion,
+  type RegisterId,
+} from "../../../lib/data";
+
+export const prerender = false;
+
+const registerId = Astro.params.id as RegisterId;
+const slug = Astro.params.slug!;
+
+if (registerId !== "act16" && registerId !== "permits") {
+  return Astro.redirect("/");
+}
+
+const register = getRegister(registerId);
+const record = findRecordBySlug(registerId, slug);
+
+if (!record) {
+  return new Response("Not found", { status: 404 });
+}
+
+const related = findRelatedRecords(record, registerId);
+const cadastreId = extractCadastreId(record.scope);
+const address = extractAddress(record.scope);
+const otherRegisterId: RegisterId = registerId === "act16" ? "permits" : "act16";
+const otherRegister = getRegister(otherRegisterId);
+const isPermit = registerId === "permits";
+
+const mapsQuery = address
+  ? `${address}, София, България`
+  : record.region
+    ? `${record.region}, София, България`
+    : null;
+const mapsUrl = mapsQuery
+  ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`
+  : null;
+
+const pageTitle = `${register.shortLabel} № ${record.number} от ${record.date}`;
+const metaDescription = `${record.documentType}${record.region ? " в район " + record.region : ""}. ${record.object.slice(0, 140)}`;
+---
+
+<Base title={`${pageTitle} — Акт 16 Тракер`} description={metaDescription}>
+  <nav class="breadcrumb" aria-label="Breadcrumb">
+    <a href="/">Начало</a>
+    <span class="breadcrumb__sep">/</span>
+    <a href={`/register/${registerId}`}>{register.shortLabel}</a>
+    <span class="breadcrumb__sep">/</span>
+    <span class="breadcrumb__current">№ {record.number}</span>
+  </nav>
+
+  <article class="detail">
+    <header class="detail__header">
+      <p class="detail__type">{record.documentType}</p>
+      <h1 class="detail__number">№ {record.number}</h1>
+      <div class="detail__meta">
+        <span class="detail__date">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+          {record.date}
+        </span>
+        {record.region && (
+          <a href={`/region/${slugifyRegion(record.region)}`} class="badge badge--district">
+            {record.region}
+          </a>
+        )}
+        {record.status && <span class="badge badge--status">{record.status}</span>}
+      </div>
+    </header>
+
+    <section class="detail__section">
+      <h2 class="detail__section-title">Описание на строежа</h2>
+      <p class="detail__object">{record.object}</p>
+    </section>
+
+    <div class="detail__grid">
+      {isPermit ? (
+        record.employer && (
+          <div class="detail__field">
+            <h3>Възложител</h3>
+            <p>{record.employer}</p>
+          </div>
+        )
+      ) : (
+        record.constructionOversight && (
+          <div class="detail__field">
+            <h3>Строителен надзор</h3>
+            <p>{record.constructionOversight}</p>
+          </div>
+        )
+      )}
+      {record.issuer && (
+        <div class="detail__field">
+          <h3>Издател</h3>
+          <p>{record.issuer}</p>
+        </div>
+      )}
+      {record.takeEffect && (
+        <div class="detail__field">
+          <h3>Влиза в сила</h3>
+          <p>{record.takeEffect}</p>
+        </div>
+      )}
+      {cadastreId && (
+        <div class="detail__field">
+          <h3>Идентификатор КККР</h3>
+          <p class="detail__monospace">{cadastreId}</p>
+        </div>
+      )}
+    </div>
+
+    <section class="detail__section">
+      <h2 class="detail__section-title">Местоположение</h2>
+      <p class="detail__scope">{record.scope}</p>
+      {mapsUrl && (
+        <a href={mapsUrl} target="_blank" rel="noopener" class="map-link">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>
+          Отвори в Google Maps
+        </a>
+      )}
+    </section>
+
+    {(related.otherRegister.length > 0 || related.sameCadastre.length > 0) && (
+      <section class="detail__section detail__related">
+        <h2 class="detail__section-title">
+          Свързани документи
+          {cadastreId && <span class="detail__related-id"> · {cadastreId}</span>}
+        </h2>
+
+        {related.otherRegister.length > 0 && (
+          <div class="related-group">
+            <h3 class="related-group__title">
+              {otherRegister.shortLabel} ({related.otherRegister.length})
+            </h3>
+            <ul class="related-list">
+              {related.otherRegister.map((r) => (
+                <li>
+                  <a href={`/register/${otherRegisterId}/${recordSlug(r)}`} class="related-card card">
+                    <div class="related-card__head">
+                      <span class="related-card__num">№ {r.number}</span>
+                      <span class="related-card__date">{r.date}</span>
+                    </div>
+                    <p class="related-card__obj">{r.object.slice(0, 140)}{r.object.length > 140 ? "…" : ""}</p>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+
+        {related.sameCadastre.length > 0 && (
+          <div class="related-group">
+            <h3 class="related-group__title">
+              Други {register.shortLabel} на същия имот ({related.sameCadastre.length})
+            </h3>
+            <ul class="related-list">
+              {related.sameCadastre.map((r) => (
+                <li>
+                  <a href={`/register/${registerId}/${recordSlug(r)}`} class="related-card card">
+                    <div class="related-card__head">
+                      <span class="related-card__num">№ {r.number}</span>
+                      <span class="related-card__date">{r.date}</span>
+                    </div>
+                    <p class="related-card__obj">{r.object.slice(0, 140)}{r.object.length > 140 ? "…" : ""}</p>
+                  </a>
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </section>
+    )}
+  </article>
+</Base>
+
+<style>
+  .breadcrumb {
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    margin-bottom: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    flex-wrap: wrap;
+  }
+
+  .breadcrumb a { color: var(--color-text-muted); font-weight: 600; }
+  .breadcrumb a:hover { color: var(--color-primary); }
+  .breadcrumb__sep { opacity: 0.4; }
+  .breadcrumb__current { color: var(--color-text); font-weight: 700; }
+
+  .detail__header {
+    padding-bottom: 1.25rem;
+    border-bottom: 1px solid var(--color-border-light);
+    margin-bottom: 1.5rem;
+  }
+
+  .detail__type {
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 0.3rem;
+  }
+
+  .detail__number {
+    font-family: var(--font-mono);
+    font-size: 1.75rem;
+    font-weight: 800;
+    letter-spacing: -0.02em;
+    background: linear-gradient(135deg, var(--color-primary), var(--color-coral));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    line-height: 1.15;
+  }
+
+  .detail__meta {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 0.75rem;
+    flex-wrap: wrap;
+  }
+
+  .detail__date {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+
+  .detail__date svg { opacity: 0.7; }
+
+  .detail__section { margin-bottom: 1.75rem; }
+
+  .detail__section-title {
+    font-size: 0.72rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin-bottom: 0.5rem;
+  }
+
+  .detail__related-id {
+    font-family: var(--font-mono);
+    color: var(--color-primary);
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+  }
+
+  .detail__object {
+    font-size: 1.02rem;
+    line-height: 1.6;
+    color: var(--color-text);
+  }
+
+  .detail__scope {
+    font-size: 0.9rem;
+    line-height: 1.7;
+    color: var(--color-text);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    border-radius: var(--radius);
+    padding: 0.85rem 1rem;
+    word-break: break-word;
+  }
+
+  .detail__grid {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.85rem;
+    margin-bottom: 1.75rem;
+  }
+
+  .detail__field h3 {
+    font-size: 0.7rem;
+    font-weight: 800;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--color-text-muted);
+    margin-bottom: 0.25rem;
+  }
+
+  .detail__field p {
+    font-size: 0.92rem;
+    line-height: 1.5;
+    color: var(--color-text);
+  }
+
+  .detail__monospace {
+    font-family: var(--font-mono);
+    font-size: 0.88rem !important;
+    color: var(--color-primary) !important;
+    font-weight: 600;
+  }
+
+  .map-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.45rem;
+    margin-top: 0.75rem;
+    padding: 0.5rem 0.85rem;
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-primary);
+    background: var(--color-primary-light);
+    border: 1.5px solid rgba(124, 58, 237, 0.18);
+    border-radius: var(--radius);
+    transition: all var(--transition);
+  }
+
+  .map-link:hover {
+    background: var(--color-primary);
+    color: white;
+    border-color: var(--color-primary);
+  }
+
+  .detail__related {
+    border-top: 1px solid var(--color-border-light);
+    padding-top: 1.5rem;
+  }
+
+  .related-group { margin-bottom: 1.5rem; }
+  .related-group:last-child { margin-bottom: 0; }
+
+  .related-group__title {
+    font-size: 0.95rem;
+    font-weight: 700;
+    margin-bottom: 0.6rem;
+    color: var(--color-text);
+  }
+
+  .related-list {
+    list-style: none;
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 0.65rem;
+    margin: 0;
+    padding: 0;
+  }
+
+  .related-card {
+    display: block;
+    color: var(--color-text);
+    transition: all var(--transition);
+    border-left: 3px solid transparent;
+    padding: 1rem;
+  }
+
+  .related-card:hover {
+    color: var(--color-text);
+    border-left-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+    transform: translateY(-1px);
+  }
+
+  .related-card__head {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 0.35rem;
+  }
+
+  .related-card__num {
+    font-family: var(--font-mono);
+    font-weight: 700;
+    font-size: 0.82rem;
+    color: var(--color-primary);
+  }
+
+  .related-card__date {
+    font-size: 0.75rem;
+    color: var(--color-text-muted);
+    font-weight: 600;
+  }
+
+  .related-card__obj {
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+    line-height: 1.5;
+  }
+
+  @media (min-width: 640px) {
+    .detail__header { margin-bottom: 2rem; padding-bottom: 1.5rem; }
+    .detail__number { font-size: 2.25rem; }
+    .detail__section { margin-bottom: 2.25rem; }
+    .detail__object { font-size: 1.1rem; }
+    .detail__grid { grid-template-columns: repeat(2, 1fr); gap: 1.25rem; }
+    .related-list { grid-template-columns: repeat(auto-fill, minmax(280px, 1fr)); gap: 0.85rem; }
+  }
+</style>

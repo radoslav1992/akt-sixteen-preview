@@ -4,7 +4,10 @@ import {
   getRegister,
   getDistrictCounts,
   getMonthlyBreakdown,
+  getYearlyBreakdown,
   getCombinedStats,
+  getTopParties,
+  slugifyRegion,
   type RegisterId,
 } from "../lib/data";
 
@@ -13,6 +16,7 @@ const activeTab = (url.searchParams.get("tab") as RegisterId) || "act16";
 
 const register = getRegister(activeTab);
 const stats = getCombinedStats();
+const isPermits = activeTab === "permits";
 
 const districtCounts = [...getDistrictCounts(activeTab).entries()].sort(
   (a, b) => b[1] - a[1]
@@ -25,6 +29,13 @@ const monthlyBreakdown = [...getMonthlyBreakdown(activeTab).entries()].sort(
     return +yB - +yA || +mB - +mA;
   }
 );
+
+const yearlyBreakdown = [...getYearlyBreakdown(activeTab).entries()].sort(
+  (a, b) => +b[0] - +a[0]
+);
+
+const topParties = getTopParties(activeTab, isPermits ? "employer" : "constructionOversight", 10);
+const partyHeading = isPermits ? "Топ възложители" : "Топ строителен надзор";
 
 const MONTH_NAMES: Record<string, string> = {
   "01": "Януари",
@@ -48,6 +59,8 @@ function formatMonth(key: string): string {
 
 const maxDistrict = districtCounts[0]?.[1] ?? 1;
 const maxMonthly = Math.max(...monthlyBreakdown.map(([, c]) => c), 1);
+const maxYearly = Math.max(...yearlyBreakdown.map(([, c]) => c), 1);
+const maxParty = topParties[0]?.[1] ?? 1;
 const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
   day: "numeric",
   month: "long",
@@ -72,19 +85,37 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
     </a>
   </nav>
 
+  {yearlyBreakdown.length > 1 && (
+    <section class="card year-compare">
+      <h2 class="chart-title">По година</h2>
+      <div class="year-bars">
+        {yearlyBreakdown.map(([year, count]) => (
+          <div class="year-bar">
+            <span class="year-bar__value">{count}</span>
+            <div
+              class:list={["year-bar__fill", { "year-bar__fill--accent": isPermits }]}
+              style={`height: ${(count / maxYearly) * 100}%`}
+            />
+            <span class="year-bar__label">{year}</span>
+          </div>
+        ))}
+      </div>
+    </section>
+  )}
+
   <div class="stats-layout">
     <section class="card">
       <h2 class="chart-title">По район</h2>
       <div class="bar-chart">
         {districtCounts.map(([name, count]) => (
           <a
-            href={`/register/${activeTab}?region=${encodeURIComponent(name)}`}
+            href={`/region/${slugifyRegion(name)}`}
             class="bar-row"
           >
             <span class="bar-label">{name}</span>
             <div class="bar-track">
               <div
-                class:list={["bar-fill", { "bar-fill--accent": activeTab === "permits" }]}
+                class:list={["bar-fill", { "bar-fill--accent": isPermits }]}
                 style={`width: ${(count / maxDistrict) * 100}%`}
               />
             </div>
@@ -102,7 +133,7 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
             <span class="bar-label">{formatMonth(key)}</span>
             <div class="bar-track">
               <div
-                class:list={["bar-fill", { "bar-fill--accent": activeTab === "permits" }]}
+                class:list={["bar-fill", { "bar-fill--accent": isPermits }]}
                 style={`width: ${(count / maxMonthly) * 100}%`}
               />
             </div>
@@ -112,6 +143,29 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
       </div>
     </section>
   </div>
+
+  {topParties.length > 0 && (
+    <section class="card top-parties">
+      <h2 class="chart-title">{partyHeading}</h2>
+      <ol class="party-list">
+        {topParties.map(([name, count], i) => (
+          <li class="party-row">
+            <span class="party-rank">{i + 1}</span>
+            <div class="party-body">
+              <span class="party-name">{name}</span>
+              <div class="party-track">
+                <div
+                  class:list={["party-fill", { "party-fill--accent": isPermits }]}
+                  style={`width: ${(count / maxParty) * 100}%`}
+                />
+              </div>
+            </div>
+            <span class="party-count">{count}</span>
+          </li>
+        ))}
+      </ol>
+    </section>
+  )}
 </Base>
 
 <style>
@@ -231,6 +285,125 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
     font-family: var(--font-mono);
     text-align: right;
     color: var(--color-text);
+  }
+
+  /* --- Yearly comparison --- */
+  .year-compare { margin-bottom: 1rem; }
+
+  .year-bars {
+    display: flex;
+    align-items: flex-end;
+    gap: 0.5rem;
+    height: 160px;
+    padding: 0.5rem 0 0;
+  }
+
+  .year-bar {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 0.35rem;
+    min-width: 0;
+  }
+
+  .year-bar__value {
+    font-family: var(--font-mono);
+    font-size: 0.78rem;
+    font-weight: 800;
+    color: var(--color-text);
+  }
+
+  .year-bar__fill {
+    width: 100%;
+    background: linear-gradient(180deg, var(--color-primary), #9333ea);
+    border-radius: 6px 6px 2px 2px;
+    min-height: 4px;
+    transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .year-bar__fill--accent {
+    background: linear-gradient(180deg, var(--color-accent), var(--color-coral));
+  }
+
+  .year-bar__label {
+    font-size: 0.75rem;
+    font-weight: 700;
+    color: var(--color-text-muted);
+  }
+
+  /* --- Top parties leaderboard --- */
+  .top-parties { margin-top: 1rem; }
+
+  .party-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.55rem;
+  }
+
+  .party-row {
+    display: grid;
+    grid-template-columns: 28px 1fr 44px;
+    align-items: center;
+    gap: 0.6rem;
+  }
+
+  .party-rank {
+    font-family: var(--font-mono);
+    font-size: 0.85rem;
+    font-weight: 800;
+    color: var(--color-text-muted);
+    text-align: center;
+  }
+
+  .party-row:nth-child(1) .party-rank { color: var(--color-primary); font-size: 1rem; }
+  .party-row:nth-child(2) .party-rank,
+  .party-row:nth-child(3) .party-rank { color: var(--color-coral); }
+
+  .party-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    min-width: 0;
+  }
+
+  .party-name {
+    font-size: 0.83rem;
+    font-weight: 600;
+    line-height: 1.3;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .party-track {
+    height: 6px;
+    background: var(--color-border-light);
+    border-radius: 3px;
+    overflow: hidden;
+  }
+
+  .party-fill {
+    height: 100%;
+    background: linear-gradient(90deg, var(--color-primary), #9333ea);
+    border-radius: 3px;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .party-fill--accent {
+    background: linear-gradient(90deg, var(--color-accent), var(--color-coral));
+  }
+
+  .party-count {
+    font-family: var(--font-mono);
+    font-weight: 800;
+    font-size: 0.85rem;
+    color: var(--color-text);
+    text-align: right;
   }
 
   @media (min-width: 640px) {

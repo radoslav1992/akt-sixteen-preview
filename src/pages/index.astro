@@ -4,6 +4,7 @@ import {
   getRegister,
   getDistrictCounts,
   getCombinedStats,
+  slugifyRegion,
 } from "../lib/data";
 import { getCollection } from "astro:content";
 
@@ -74,7 +75,7 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
     </div>
     <div class="district-grid">
       {act16Districts.map(([name, count]) => (
-        <a href={`/register/act16?region=${encodeURIComponent(name)}`} class="district-chip">
+        <a href={`/region/${slugifyRegion(name)}`} class="district-chip">
           <span class="district-chip__name">{name}</span>
           <span class="district-chip__count">{count}</span>
         </a>
@@ -88,21 +89,24 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
       <a href="/register/act16">Виж всички &rarr;</a>
     </div>
     <div class="recent-grid">
-      {recentAct16.map((r) => (
-        <div class="card recent-card">
-          <div class="recent-card__header">
-            <span class="recent-card__number">№ {r.number}</span>
-            <span class="recent-card__date">{r.date}</span>
-          </div>
-          <p class="recent-card__object">{r.object.slice(0, 140)}{r.object.length > 140 ? "..." : ""}</p>
-          <div class="recent-card__footer">
-            {r.region && <span class="badge badge--district">{r.region}</span>}
-            {r.constructionOversight && (
-              <span class="recent-card__meta">{r.constructionOversight}</span>
-            )}
-          </div>
-        </div>
-      ))}
+      {recentAct16.map((r) => {
+        const slug = `${r.number}-${r.date.replace(/\./g, "")}`;
+        return (
+          <a href={`/register/act16/${slug}`} class="card recent-card">
+            <div class="recent-card__header">
+              <span class="recent-card__number">№ {r.number}</span>
+              <span class="recent-card__date">{r.date}</span>
+            </div>
+            <p class="recent-card__object">{r.object.slice(0, 140)}{r.object.length > 140 ? "..." : ""}</p>
+            <div class="recent-card__footer">
+              {r.region && <span class="badge badge--district">{r.region}</span>}
+              {r.constructionOversight && (
+                <span class="recent-card__meta">{r.constructionOversight}</span>
+              )}
+            </div>
+          </a>
+        );
+      })}
     </div>
   </section>
 
@@ -114,7 +118,7 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
     </div>
     <div class="district-grid">
       {permitsDistricts.map(([name, count]) => (
-        <a href={`/register/permits?region=${encodeURIComponent(name)}`} class="district-chip district-chip--accent">
+        <a href={`/region/${slugifyRegion(name)}`} class="district-chip district-chip--accent">
           <span class="district-chip__name">{name}</span>
           <span class="district-chip__count">{count}</span>
         </a>
@@ -128,21 +132,24 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
       <a href="/register/permits">Виж всички &rarr;</a>
     </div>
     <div class="recent-grid">
-      {recentPermits.map((r) => (
-        <div class="card recent-card">
-          <div class="recent-card__header">
-            <span class="recent-card__number">№ {r.number}</span>
-            <span class="recent-card__date">{r.date}</span>
-          </div>
-          <p class="recent-card__object">{r.object.slice(0, 140)}{r.object.length > 140 ? "..." : ""}</p>
-          <div class="recent-card__footer">
-            {r.region && <span class="badge badge--district">{r.region}</span>}
-            {r.employer && (
-              <span class="recent-card__meta">{r.employer}</span>
-            )}
-          </div>
-        </div>
-      ))}
+      {recentPermits.map((r) => {
+        const slug = `${r.number}-${r.date.replace(/\./g, "")}`;
+        return (
+          <a href={`/register/permits/${slug}`} class="card recent-card">
+            <div class="recent-card__header">
+              <span class="recent-card__number">№ {r.number}</span>
+              <span class="recent-card__date">{r.date}</span>
+            </div>
+            <p class="recent-card__object">{r.object.slice(0, 140)}{r.object.length > 140 ? "..." : ""}</p>
+            <div class="recent-card__footer">
+              {r.region && <span class="badge badge--district">{r.region}</span>}
+              {r.employer && (
+                <span class="recent-card__meta">{r.employer}</span>
+              )}
+            </div>
+          </a>
+        );
+      })}
     </div>
   </section>
 
@@ -263,6 +270,19 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
     display: grid;
     grid-template-columns: 1fr;
     gap: 0.75rem;
+  }
+
+  .recent-card {
+    color: var(--color-text);
+    display: block;
+    border-left: 3px solid transparent;
+    transition: all var(--transition);
+  }
+
+  .recent-card:hover {
+    color: var(--color-text);
+    border-left-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
   }
 
   .recent-card__header {

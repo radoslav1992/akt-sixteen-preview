@@ -69,6 +69,17 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
       <button id="clear-filters" class="btn btn--outline" type="button">Изчисти</button>
     </div>
 
+    <div class="date-presets" role="group" aria-label="Бързи периоди">
+      <button type="button" class="preset-btn" data-preset="7">7 дни</button>
+      <button type="button" class="preset-btn" data-preset="30">30 дни</button>
+      <button type="button" class="preset-btn" data-preset="90">90 дни</button>
+      <button type="button" class="preset-btn" data-preset="365">1 година</button>
+      <button type="button" class="preset-btn preset-btn--export" id="export-csv">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        CSV
+      </button>
+    </div>
+
     <div class="active-filters" id="active-filters"></div>
   </div>
 
@@ -239,41 +250,59 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
       mobileList.innerHTML = `<p class="empty-state-mobile">Няма намерени записи</p>`;
     } else {
       tableBody.innerHTML = page
-        .map(
-          (r: any) => `<tr>
+        .map((r: any) => {
+          const href = `/register/${registerId}/${esc(r.k)}`;
+          return `<tr class="row-link" data-href="${href}" tabindex="0" role="link">
             <td class="cell-number">${esc(r.n)}</td>
             <td class="cell-date">${esc(r.d)}</td>
             <td class="cell-object">${esc(truncate(r.o, 180))}</td>
-            <td>${r.r ? `<span class="badge badge--district">${esc(r.r)}</span>` : '<span class="text-muted">—</span>'}</td>
+            <td>${r.r ? `<button type="button" class="badge badge--district badge--filter" data-region="${esc(r.r)}">${esc(r.r)}</button>` : '<span class="text-muted">—</span>'}</td>
             <td class="cell-meta">${esc(r.m || "—")}</td>
             <td class="cell-scope">${esc(truncate(r.s, 100))}</td>
-          </tr>`
-        )
+          </tr>`;
+        })
         .join("");
 
       mobileList.innerHTML = page
-        .map(
-          (r: any) => `<div class="m-card card">
+        .map((r: any) => {
+          const href = `/register/${registerId}/${esc(r.k)}`;
+          return `<a href="${href}" class="m-card card">
             <div class="m-card__head">
               <span class="m-card__num">№ ${esc(r.n)}</span>
               <span class="m-card__date">${esc(r.d)}</span>
             </div>
             <p class="m-card__obj">${esc(truncate(r.o, 140))}</p>
             <div class="m-card__foot">
-              ${r.r ? `<span class="badge badge--district">${esc(r.r)}</span>` : ""}
+              ${r.r ? `<button type="button" class="badge badge--district badge--filter" data-region="${esc(r.r)}">${esc(r.r)}</button>` : ""}
               ${r.m ? `<span class="m-card__meta">${esc(truncate(r.m, 60))}</span>` : ""}
             </div>
-          </div>`
-        )
+          </a>`;
+        })
         .join("");
     }
 
-    document.querySelectorAll(".badge--district").forEach((el) => {
-      el.addEventListener("click", () => {
-        regionSelect.value = el.textContent!.trim();
+    document.querySelectorAll<HTMLElement>(".row-link").forEach((row) => {
+      row.addEventListener("click", (e) => {
+        if ((e.target as HTMLElement).closest(".badge--filter")) return;
+        const href = row.dataset.href;
+        if (href) window.location.href = href;
+      });
+      row.addEventListener("keydown", (e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          const href = row.dataset.href;
+          if (href) window.location.href = href;
+        }
+      });
+    });
+
+    document.querySelectorAll<HTMLElement>(".badge--filter").forEach((el) => {
+      el.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        regionSelect.value = el.dataset.region || "";
         onFilterChange();
       });
-      (el as HTMLElement).style.cursor = "pointer";
     });
 
     // Sort indicators
@@ -440,11 +469,70 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     });
   });
 
-  // Keyboard shortcut: focus search with /
+  // Date presets
+  document.querySelectorAll<HTMLButtonElement>(".preset-btn[data-preset]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      const days = parseInt(btn.dataset.preset!);
+      const to = new Date();
+      const from = new Date();
+      from.setDate(to.getDate() - days);
+      const fmt = (d: Date) =>
+        `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+      dateFrom.value = fmt(from);
+      dateTo.value = fmt(to);
+      onFilterChange();
+    });
+  });
+
+  // CSV export of current filtered view
+  document.getElementById("export-csv")?.addEventListener("click", () => {
+    const cols = [
+      ["n", "Номер"],
+      ["d", "Дата"],
+      ["o", "Обект"],
+      ["r", "Район"],
+      ["m", meta.metaLabel],
+      ["s", "Обхват"],
+    ];
+    const csvEscape = (v: string) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+    const rows = [
+      cols.map(([, label]) => csvEscape(label)).join(","),
+      ...filtered.map((r: any) => cols.map(([k]) => csvEscape(r[k])).join(",")),
+    ];
+    const blob = new Blob(["﻿" + rows.join("\r\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const stamp = new Date().toISOString().slice(0, 10);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `akt16-${registerId}-${stamp}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+  });
+
+  // Keyboard shortcuts
   document.addEventListener("keydown", (e) => {
-    if (e.key === "/" && document.activeElement?.tagName !== "INPUT") {
+    const inInput = document.activeElement?.tagName === "INPUT"
+      || document.activeElement?.tagName === "TEXTAREA"
+      || document.activeElement?.tagName === "SELECT";
+    if (e.key === "/" && !inInput) {
       e.preventDefault();
       searchInput.focus();
+      return;
+    }
+    if (inInput) return;
+    if (e.key === "ArrowLeft" && currentPage > 1) {
+      e.preventDefault();
+      currentPage--;
+      render();
+    } else if (e.key === "ArrowRight") {
+      const totalPages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+      if (currentPage < totalPages) {
+        e.preventDefault();
+        currentPage++;
+        render();
+      }
     }
   });
 
@@ -587,6 +675,43 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     border-color: var(--color-text-muted);
   }
 
+  /* --- Date presets --- */
+  .date-presets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.55rem;
+  }
+
+  .preset-btn {
+    font-family: inherit;
+    padding: 0.4rem 0.7rem;
+    font-size: 0.74rem;
+    font-weight: 600;
+    color: var(--color-text-muted);
+    background: var(--color-surface);
+    border: 1.5px solid var(--color-border);
+    border-radius: var(--radius-full);
+    cursor: pointer;
+    transition: all var(--transition);
+  }
+
+  .preset-btn:hover {
+    color: var(--color-primary);
+    border-color: var(--color-primary);
+    background: var(--color-primary-light);
+  }
+
+  .preset-btn--export {
+    margin-left: auto;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    color: var(--color-primary);
+    border-color: rgba(124, 58, 237, 0.25);
+    background: var(--color-primary-light);
+  }
+
   /* --- Active filter chips --- */
   .active-filters {
     display: flex;
@@ -626,8 +751,38 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     gap: 0.6rem;
   }
 
-  :global(.m-card) {
+  :global(a.m-card) {
+    display: block;
+    color: var(--color-text);
     padding: 1rem;
+    border-left: 3px solid transparent;
+    transition: all var(--transition);
+  }
+
+  :global(a.m-card:hover) {
+    color: var(--color-text);
+    border-left-color: var(--color-primary);
+    box-shadow: var(--shadow-md);
+  }
+
+  :global(a.m-card:active) {
+    transform: scale(0.99);
+  }
+
+  :global(.badge--filter) {
+    font-family: inherit;
+    cursor: pointer;
+    border: none;
+    padding: 0.2rem 0.65rem;
+  }
+
+  :global(.row-link) {
+    cursor: pointer;
+  }
+
+  :global(.row-link:focus-visible) {
+    outline: 2px solid var(--color-primary);
+    outline-offset: -2px;
   }
 
   :global(.m-card__head) {
