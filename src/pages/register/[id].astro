@@ -159,7 +159,7 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     return `${y}-${m}-${d}`;
   }
 
-  function applyFilters() {
+  function applyFilters(preservePage = false) {
     const query = searchInput.value.toLowerCase().trim();
     const region = regionSelect.value;
     const fromTs = dateFrom.value ? new Date(dateFrom.value).getTime() : 0;
@@ -179,10 +179,10 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
       return true;
     });
 
-    applySort();
+    applySort(preservePage);
   }
 
-  function applySort() {
+  function applySort(preservePage = false) {
     const dir = sortDir === "asc" ? 1 : -1;
 
     filtered.sort((a: any, b: any) => {
@@ -216,7 +216,7 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
       return 0;
     });
 
-    currentPage = 1;
+    if (!preservePage) currentPage = 1;
     render();
   }
 
@@ -227,7 +227,12 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     const start = (currentPage - 1) * PAGE_SIZE;
     const page = filtered.slice(start, start + PAGE_SIZE);
 
-    resultsCount.textContent = `${total} записа`;
+    const totalPagesForLabel = Math.max(1, Math.ceil(total / PAGE_SIZE));
+    resultsCount.textContent = total === 0
+      ? "Няма намерени записи"
+      : totalPagesForLabel > 1
+        ? `${total} записа · стр. ${currentPage} от ${totalPagesForLabel}`
+        : `${total} записа`;
 
     if (page.length === 0) {
       tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Няма намерени записи</td></tr>`;
@@ -302,17 +307,21 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     const pages = buildPageNumbers(currentPage, totalPages);
 
     paginationEl.innerHTML = `
-      <button class="pg-btn" data-page="${currentPage - 1}" ${currentPage <= 1 ? "disabled" : ""}>← Предишна</button>
+      <button class="pg-btn pg-btn--prev" data-page="${currentPage - 1}" ${currentPage <= 1 ? "disabled" : ""} aria-label="Предишна страница">
+        <span aria-hidden="true">←</span><span class="pg-btn__label"> Предишна</span>
+      </button>
       <div class="pg-numbers">
         ${pages
           .map((p) =>
             p === "..."
               ? `<span class="pg-ellipsis">…</span>`
-              : `<button class="pg-num ${p === currentPage ? "pg-num--active" : ""}" data-page="${p}">${p}</button>`
+              : `<button class="pg-num ${p === currentPage ? "pg-num--active" : ""}" data-page="${p}" aria-label="Страница ${p}">${p}</button>`
           )
           .join("")}
       </div>
-      <button class="pg-btn" data-page="${currentPage + 1}" ${currentPage >= totalPages ? "disabled" : ""}>Следваща →</button>
+      <button class="pg-btn pg-btn--next" data-page="${currentPage + 1}" ${currentPage >= totalPages ? "disabled" : ""} aria-label="Следваща страница">
+        <span class="pg-btn__label">Следваща </span><span aria-hidden="true">→</span>
+      </button>
     `;
 
     paginationEl.querySelectorAll("[data-page]").forEach((btn) =>
@@ -453,7 +462,7 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
       return;
     }
     restoreFromUrl();
-    applyFilters();
+    applyFilters(true);
   }
 
   init();
@@ -463,10 +472,10 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
   /* --- Tabs --- */
   .register-tabs {
     display: inline-flex;
-    gap: 0.2rem;
+    gap: 0.25rem;
     margin-bottom: 1rem;
     background: var(--color-border-light);
-    padding: 0.2rem;
+    padding: 0.25rem;
     border-radius: var(--radius);
     width: 100%;
   }
@@ -474,11 +483,11 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
   .tab {
     flex: 1;
     text-align: center;
-    padding: 0.5rem 0.5rem;
-    font-size: 0.8rem;
+    padding: 0.6rem 0.5rem;
+    font-size: 0.82rem;
     font-weight: 600;
     color: var(--color-text-muted);
-    border-radius: calc(var(--radius) - 2px);
+    border-radius: calc(var(--radius) - 3px);
     transition: all var(--transition);
   }
 
@@ -751,17 +760,19 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
   .pagination {
     display: flex;
     align-items: center;
-    justify-content: center;
+    justify-content: space-between;
     gap: 0.5rem;
-    margin-top: 1rem;
+    margin-top: 1.25rem;
     padding: 0.5rem 0;
-    flex-wrap: wrap;
+    flex-wrap: nowrap;
   }
 
   :global(.pg-btn) {
     font-family: inherit;
-    padding: 0.45rem 0.75rem;
-    font-size: 0.8rem;
+    padding: 0 0.85rem;
+    height: 40px;
+    min-width: 40px;
+    font-size: 0.82rem;
     font-weight: 600;
     color: var(--color-primary);
     background: var(--color-surface);
@@ -769,6 +780,7 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     border-radius: var(--radius);
     cursor: pointer;
     transition: all var(--transition);
+    white-space: nowrap;
   }
 
   :global(.pg-btn:hover:not(:disabled)) {
@@ -785,16 +797,18 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     display: flex;
     align-items: center;
     gap: 0.2rem;
+    flex-wrap: nowrap;
   }
 
   :global(.pg-num) {
     font-family: inherit;
-    width: 34px;
-    height: 34px;
+    min-width: 36px;
+    height: 36px;
+    padding: 0 0.4rem;
     display: flex;
     align-items: center;
     justify-content: center;
-    font-size: 0.82rem;
+    font-size: 0.85rem;
     font-weight: 600;
     color: var(--color-text-muted);
     background: transparent;
@@ -823,8 +837,19 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
   }
 
   :global(.pg-ellipsis) {
-    padding: 0 0.2rem;
+    padding: 0 0.15rem;
     color: var(--color-text-muted);
+    font-weight: 700;
+  }
+
+  :global(.pg-btn__label) {
+    display: none;
+  }
+
+  @media (min-width: 480px) {
+    :global(.pg-btn__label) {
+      display: inline;
+    }
   }
 
   /* --- Desktop breakpoint --- */
@@ -871,8 +896,7 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     .mobile-list { display: none; }
     .table-wrap { display: block; }
 
-    .pagination { gap: 0.75rem; margin-top: 1.25rem; padding: 0.75rem 0; }
-    :global(.pg-btn) { padding: 0.45rem 1rem; font-size: 0.85rem; }
-    :global(.pg-num) { width: 36px; height: 36px; font-size: 0.85rem; }
+    .pagination { gap: 0.75rem; margin-top: 1.5rem; padding: 0.75rem 0; justify-content: center; }
+    :global(.pg-btn) { padding: 0 1rem; font-size: 0.85rem; }
   }
 </style>
