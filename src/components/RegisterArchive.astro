@@ -1,0 +1,38 @@
+---
+import { getRecords, recordSlug, type RegisterId } from "../lib/data";
+interface Props { registerId: RegisterId; page?: number }
+const { registerId, page = 1 } = Astro.props;
+const records = getRecords(registerId);
+const pageSize = 100;
+const totalPages = Math.ceil(records.length / pageSize);
+const entries = records.slice((page - 1) * pageSize, page * pageSize);
+const pageUrl = (n: number) => `/register/${registerId}/archive/${n}/`;
+---
+<section class="archive" aria-labelledby="archive-title">
+  <h2 id="archive-title">{registerId === "act16" ? "Архив на удостоверенията за въвеждане в експлоатация" : "Архив на разрешенията за строеж"}</h2>
+  <p>Страница {page} от {totalPages} · Записи {(page - 1) * pageSize + 1}–{Math.min(page * pageSize, records.length)} от {records.length}</p>
+  <ol start={(page - 1) * pageSize + 1}>
+    {entries.map((r) => (
+      <li><a href={`/register/${registerId}/${recordSlug(r)}/`}>
+        <strong>№ {r.number} от {r.date}{r.region ? ` · ${r.region}` : ""}</strong>
+        <span>{r.object}</span>
+      </a></li>
+    ))}
+  </ol>
+  <nav aria-label="Страници в архива">
+    {page > 1 && <a href={pageUrl(page - 1)} rel="prev">← Предишна</a>}
+    {page > 2 && <a href={pageUrl(1)}>Първа страница</a>}
+    {page < totalPages && <a href={pageUrl(page + 1)} rel="next">Следваща →</a>}
+    {page < totalPages - 1 && <a href={pageUrl(totalPages)}>Последна страница</a>}
+  </nav>
+</section>
+<style>
+  .archive { margin: 2rem 0; }
+  h2 { font-size: 1.3rem; }
+  p { color: var(--color-text-muted); margin: .75rem 0; }
+  ol { padding-left: 1.5rem; }
+  li { padding: .75rem 0; border-bottom: 1px solid var(--color-border-light); }
+  a { overflow-wrap: anywhere; }
+  span { display: block; color: var(--color-text); margin-top: .3rem; }
+  nav { display: flex; flex-wrap: wrap; gap: 1rem; margin-top: 1.5rem; }
+</style>

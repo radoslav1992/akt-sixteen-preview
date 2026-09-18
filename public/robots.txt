@@ -1,0 +1,4 @@
+User-agent: *
+Allow: /
+
+Sitemap: https://akt16.org/sitemap-index.xml

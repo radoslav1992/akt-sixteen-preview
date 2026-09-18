@@ -77,10 +77,10 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
   </section>
 
   <nav class="register-tabs">
-    <a href="/stats?tab=act16" class:list={["tab", { active: activeTab === "act16" }]}>
+    <a href="/stats/?tab=act16" class:list={["tab", { active: activeTab === "act16" }]}>
       Акт 16 ({stats.totalAct16})
     </a>
-    <a href="/stats?tab=permits" class:list={["tab", { active: activeTab === "permits" }]}>
+    <a href="/stats/?tab=permits" class:list={["tab", { active: activeTab === "permits" }]}>
       Разрешения ({stats.totalPermits})
     </a>
   </nav>
@@ -109,7 +109,7 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
       <div class="bar-chart">
         {districtCounts.map(([name, count]) => (
           <a
-            href={`/region/${slugifyRegion(name)}`}
+            href={`/region/${slugifyRegion(name)}/`}
             class="bar-row"
           >
             <span class="bar-label">{name}</span>

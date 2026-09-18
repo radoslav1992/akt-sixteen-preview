@@ -26,7 +26,7 @@ const posts = (await getCollection("blog")).sort(
         year: "numeric",
       });
       return (
-        <a href={`/blog/${post.id}`} class="blog-card card">
+        <a href={`/blog/${post.id}/`} class="blog-card card">
           <div class="blog-card__meta">
             <time datetime={post.data.date.toISOString()}>{formattedDate}</time>
           </div>
