@@ -1,14 +1,16 @@
 ---
 import Base from "./Base.astro";
+import { breadcrumbs, canonicalUrl } from "../lib/seo";
 
 interface Props {
   title: string;
   description: string;
   date: Date;
+  updatedDate?: Date;
   tags: string[];
 }
 
-const { title, description, date, tags } = Astro.props;
+const { title, description, date, updatedDate, tags } = Astro.props;
 
 const formattedDate = date.toLocaleDateString("bg-BG", {
   day: "numeric",
@@ -18,29 +20,33 @@ const formattedDate = date.toLocaleDateString("bg-BG", {
 
 const isoDate = date.toISOString();
 
-const structuredData = JSON.stringify({
+const structuredData = {
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   headline: title,
   description,
   datePublished: isoDate,
+  dateModified: (updatedDate ?? date).toISOString(),
+  mainEntityOfPage: canonicalUrl(Astro.url.pathname),
   author: { "@type": "Organization", name: "Акт 16 Тракер" },
   publisher: { "@type": "Organization", name: "Акт 16 Тракер" },
   inLanguage: "bg",
   keywords: tags.join(", "),
-});
+};
 ---
 
-<Base title={`${title} — Акт 16 Тракер`} description={description}>
-  <script type="application/ld+json" set:html={structuredData} />
+<Base title={`${title} | Акт 16`} description={description} type="article" structuredData={[structuredData, breadcrumbs([
+  { name: "Начало", path: "/" }, { name: "Блог", path: "/blog/" }, { name: title, path: Astro.url.pathname },
+])]}>
 
   <article class="blog-post">
     <header class="blog-post__header">
       <div class="blog-post__meta">
         <time datetime={isoDate}>{formattedDate}</time>
         <span class="blog-post__separator">·</span>
-        <a href="/blog">Блог</a>
+        <a href="/blog/">Блог</a>
       </div>
+      {updatedDate && <p>Обновено: <time datetime={updatedDate.toISOString()}>{updatedDate.toLocaleDateString("bg-BG")}</time></p>}
       <h1 class="blog-post__title">{title}</h1>
       <p class="blog-post__description">{description}</p>
       <div class="blog-post__tags">
@@ -53,7 +59,8 @@ const structuredData = JSON.stringify({
     </div>
 
     <footer class="blog-post__footer">
-      <a href="/blog">&larr; Всички статии</a>
+      <p><a href="/register/act16/">Проверка за Акт 16 в София</a> · <a href="/register/permits/">Регистър на разрешенията за строеж</a></p>
+      <a href="/blog/">&larr; Всички статии</a>
     </footer>
   </article>
 </Base>

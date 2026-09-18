@@ -5,6 +5,7 @@ import {
   getDistrictCounts,
   getCombinedStats,
   slugifyRegion,
+  getAllRegionsWithSlugs,
 } from "../lib/data";
 import { getCollection } from "astro:content";
 
@@ -37,14 +38,22 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
 });
 ---
 
-<Base title="Акт 16 Тракер — Строителни удостоверения в София">
+<Base title="Акт 16 — проверка по адрес и регистър за София" description="Проверка за Акт 16 на жилище в София: търсете по адрес, район, номер или кадастрален идентификатор. Удостоверения и разрешения за строеж с данни от НАГ.">
   <section class="hero">
-    <h1>Акт 16 Тракер</h1>
+    <h1>Акт 16 — проверка и регистър за София</h1>
     <p class="hero__subtitle">
-      Публичен регистър на разрешенията за строеж и удостоверенията за въвеждане
-      в експлоатация (Акт 16) в Столична община. Данните се обновяват автоматично от
+      Проверете за удостоверение за въвеждане в експлоатация на жилище или сграда
+      в София. Търсете по адрес, район, номер или кадастрален идентификатор в данните от
       <a href="https://nag.sofia.bg" target="_blank" rel="noopener">НАГ</a>.
     </p>
+    <form action="/register/act16/" method="get" class="hero-search" role="search">
+      <label for="home-search">Адрес, номер на документ или идентификатор КККР</label>
+      <div class="hero-search__row">
+        <input id="home-search" name="q" type="search" placeholder="Напр. ул. Сердика или 68134…" />
+        <button class="btn" type="submit">Провери Акт 16</button>
+      </div>
+    </form>
+    <p class="hero-links"><a href="/register/act16/">Всички удостоверения</a> · <a href="/register/permits/">Разрешения за строеж</a> · <a href="/blog/proverka-akt-16-online/">Как се прави проверката?</a></p>
     <p class="hero__updated">Последна актуализация: {updatedDate}</p>
   </section>
 
@@ -71,11 +80,11 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
   <section class="section" style="margin-top: 2.5rem;">
     <div class="section-header">
       <h2>Акт 16 — по район</h2>
-      <a href="/register/act16">Виж всички &rarr;</a>
+      <a href="/register/act16/">Виж всички &rarr;</a>
     </div>
     <div class="district-grid">
       {act16Districts.map(([name, count]) => (
-        <a href={`/region/${slugifyRegion(name)}`} class="district-chip">
+        <a href={`/region/${slugifyRegion(name)}/`} class="district-chip">
           <span class="district-chip__name">{name}</span>
           <span class="district-chip__count">{count}</span>
         </a>
@@ -86,13 +95,13 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
   <section class="section" style="margin-top: 1.5rem;">
     <div class="section-header">
       <h2>Последни Акт 16</h2>
-      <a href="/register/act16">Виж всички &rarr;</a>
+      <a href="/register/act16/">Виж всички &rarr;</a>
     </div>
     <div class="recent-grid">
       {recentAct16.map((r) => {
         const slug = `${r.number}-${r.date.replace(/\./g, "")}`;
         return (
-          <a href={`/register/act16/${slug}`} class="card recent-card">
+          <a href={`/register/act16/${slug}/`} class="card recent-card">
             <div class="recent-card__header">
               <span class="recent-card__number">№ {r.number}</span>
               <span class="recent-card__date">{r.date}</span>
@@ -114,11 +123,11 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
   <section class="section" style="margin-top: 2.5rem;">
     <div class="section-header">
       <h2>Разрешения за строеж — по район</h2>
-      <a href="/register/permits">Виж всички &rarr;</a>
+      <a href="/register/permits/">Виж всички &rarr;</a>
     </div>
     <div class="district-grid">
       {permitsDistricts.map(([name, count]) => (
-        <a href={`/region/${slugifyRegion(name)}`} class="district-chip district-chip--accent">
+        <a href={`/region/${slugifyRegion(name)}/`} class="district-chip district-chip--accent">
           <span class="district-chip__name">{name}</span>
           <span class="district-chip__count">{count}</span>
         </a>
@@ -129,13 +138,13 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
   <section class="section" style="margin-top: 1.5rem;">
     <div class="section-header">
       <h2>Последни разрешения за строеж</h2>
-      <a href="/register/permits">Виж всички &rarr;</a>
+      <a href="/register/permits/">Виж всички &rarr;</a>
     </div>
     <div class="recent-grid">
       {recentPermits.map((r) => {
         const slug = `${r.number}-${r.date.replace(/\./g, "")}`;
         return (
-          <a href={`/register/permits/${slug}`} class="card recent-card">
+          <a href={`/register/permits/${slug}/`} class="card recent-card">
             <div class="recent-card__header">
               <span class="recent-card__number">№ {r.number}</span>
               <span class="recent-card__date">{r.date}</span>
@@ -154,10 +163,25 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
   </section>
 
   <!-- Blog Section -->
+  <section class="section search-help">
+    <h2>Как да проверя дали жилище има Акт 16?</h2>
+    <ol>
+      <li>Потърсете улицата или кадастралния идентификатор в <a href="/register/act16/">регистъра на удостоверенията</a>.</li>
+      <li>Изберете район и отворете съответния документ. Сравнете описанието на строежа и местоположението.</li>
+      <li>Потвърдете документа и неговия обхват в официалния регистър или при издалия го орган.</li>
+    </ol>
+    <p>Липсата на резултат тук не доказва, че сградата няма документ за въвеждане в експлоатация. Проверете и <a href="https://dnsk.bg/registri/publichen-registar-na-razresheniyata-za-polzvane-izdadeni-ot-dnsk/">регистъра на разрешенията за ползване на ДНСК</a>, когато е приложим.</p>
+    <h2>Какво означава Акт 16?</h2>
+    <p>В обявите „Акт 16“ обикновено означава, че сградата е въведена в експлоатация. Точният документ зависи от категорията на строежа. <a href="/blog/kakvo-e-akt-16/">Вижте разликата между протокол №16, разрешение за ползване и удостоверение за въвеждане в експлоатация.</a></p>
+    <h2>Проверка по район в София</h2>
+    <div class="district-grid">
+      {getAllRegionsWithSlugs().map(({ name, slug }) => <a class="district-chip" href={`/region/${slug}/`}>{name}</a>)}
+    </div>
+  </section>
   <section class="section" style="margin-top: 2.5rem;">
     <div class="section-header">
       <h2>От блога</h2>
-      <a href="/blog">Всички статии &rarr;</a>
+      <a href="/blog/">Всички статии &rarr;</a>
     </div>
     <div class="blog-grid">
       {recentPosts.map((post) => {
@@ -167,7 +191,7 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
           year: "numeric",
         });
         return (
-          <a href={`/blog/${post.id}`} class="card blog-home-card">
+          <a href={`/blog/${post.id}/`} class="card blog-home-card">
             <time class="blog-home-card__date" datetime={post.data.date.toISOString()}>
               {formattedDate}
             </time>
@@ -181,6 +205,19 @@ const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
 </Base>
 
 <style>
+  .hero-search { max-width: 680px; margin: 1.5rem auto; text-align: left; }
+  .hero-search label { display: block; font-weight: 600; margin-bottom: .5rem; }
+  .hero-search__row { display: flex; gap: .5rem; }
+  .hero-search input { flex: 1; min-width: 0; padding: .85rem; border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); color: var(--color-text); }
+  .hero-search button { flex-shrink: 0; padding: .85rem 1.2rem; border: 0; border-radius: var(--radius); background: var(--color-primary); color: white; font: inherit; font-weight: 700; cursor: pointer; }
+  .hero-search button:hover { filter: brightness(1.1); }
+  .hero-search :is(input, button):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
+  .hero-links { font-size: .9rem; line-height: 1.8; }
+  .search-help { margin-top: 2.5rem; }
+  .search-help h2 { margin: 1.75rem 0 .75rem; font-size: 1.35rem; }
+  .search-help ol { padding-left: 1.5rem; margin-bottom: 1rem; }
+  .search-help li { margin: .5rem 0; }
+  @media (max-width: 480px) { .hero-search__row { flex-direction: column; } }
   .hero {
     text-align: center;
     padding: 1.5rem 0 1rem;

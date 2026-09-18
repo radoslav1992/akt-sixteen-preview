@@ -1,23 +1,26 @@
 ---
 import "../styles/global.css";
+import { canonicalUrl as getCanonicalUrl, jsonLd } from "../lib/seo";
 
 interface Props {
   title: string;
   description?: string;
+  structuredData?: unknown[];
+  type?: "website" | "article";
 }
 
 const DEFAULT_DESCRIPTION = "Регистър на удостоверенията за въвеждане в експлоатация (Акт 16) и разрешенията за строеж в София — с данни от НАГ, обновявани ежедневно.";
 
-const { title, description = DEFAULT_DESCRIPTION } = Astro.props;
-const canonicalUrl = new URL(Astro.url.pathname, Astro.site);
+const { title, description = DEFAULT_DESCRIPTION, structuredData = [], type = "website" } = Astro.props;
+const canonicalUrl = new URL(getCanonicalUrl(Astro.url.pathname));
 
 const pathname = Astro.url.pathname.replace(/\/$/, "") || "/";
 const navLinks = [
   { href: "/", label: "Начало", match: (p: string) => p === "/" },
-  { href: "/register/act16", label: "Акт 16", match: (p: string) => p.startsWith("/register/act16") },
-  { href: "/register/permits", label: "Разрешения", match: (p: string) => p.startsWith("/register/permits") },
-  { href: "/stats", label: "Статистика", match: (p: string) => p.startsWith("/stats") },
-  { href: "/blog", label: "Блог", match: (p: string) => p.startsWith("/blog") },
+  { href: "/register/act16/", label: "Акт 16", match: (p: string) => p.startsWith("/register/act16") },
+  { href: "/register/permits/", label: "Разрешения", match: (p: string) => p.startsWith("/register/permits") },
+  { href: "/stats/", label: "Статистика", match: (p: string) => p.startsWith("/stats") },
+  { href: "/blog/", label: "Блог", match: (p: string) => p.startsWith("/blog") },
 ];
 ---
 
@@ -36,7 +39,7 @@ const navLinks = [
     <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
     <link rel="manifest" href="/manifest.json" />
 
-    <meta property="og:type" content="website" />
+    <meta property="og:type" content={type} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl.href} />
@@ -56,6 +59,12 @@ const navLinks = [
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <link rel="sitemap" href="/sitemap-index.xml" />
     <title>{title}</title>
+    <script type="application/ld+json" set:html={jsonLd({
+      "@context": "https://schema.org", "@type": "WebSite",
+      "@id": "https://akt16.org/#website", url: "https://akt16.org/",
+      name: "Акт 16 Тракер", alternateName: "akt16.org", inLanguage: "bg-BG",
+    })} />
+    {structuredData.map((data) => <script type="application/ld+json" set:html={jsonLd(data)} />)}
 
     <script is:inline>
       (function () {
@@ -140,6 +149,8 @@ const navLinks = [
             <a href="https://nag.sofia.bg" target="_blank" rel="noopener">НАГ — Столична община</a>.
           </p>
           <p class="footer__auto">Обновява се автоматично всеки ден.</p>
+          <p>Акт 16 Тракер е независим информационен сайт, а не официален регистър на общината.</p>
+          <p><a href="/blog/proverka-akt-16-online/">Как да проверя Акт 16?</a> · <a href="mailto:info@akt16.org">info@akt16.org</a></p>
         </div>
       </div>
     </footer>

@@ -1,0 +1,24 @@
+---
+import Base from "../../../../layouts/Base.astro";
+import RegisterArchive from "../../../../components/RegisterArchive.astro";
+import { getAllRegisters, getRegister, type RegisterId } from "../../../../lib/data";
+import { breadcrumbs } from "../../../../lib/seo";
+
+export function getStaticPaths() {
+  return getAllRegisters().flatMap((register) =>
+    Array.from({ length: Math.ceil(register.records.length / 100) }, (_, index) => ({
+      params: { id: register.id, page: String(index + 1) },
+    }))
+  );
+}
+const registerId = Astro.params.id as RegisterId;
+const page = Number(Astro.params.page);
+const register = getRegister(registerId);
+const title = `${register.shortLabel} в София — архив, страница ${page}`;
+---
+<Base title={`${title} | Акт 16`} description={`${register.label} в София: архив, страница ${page}. Номера, дати, райони и описания на строежите по данни от НАГ.`}
+  structuredData={[breadcrumbs([{ name: "Начало", path: "/" }, { name: register.label, path: `/register/${registerId}/` }, { name: `Архив — ${page}`, path: Astro.url.pathname }])]}>
+  <nav aria-label="Навигация"><a href={`/register/${registerId}/`}>← Търсене и филтри в регистъра</a></nav>
+  <h1>{title}</h1>
+  <RegisterArchive registerId={registerId} page={page} />
+</Base>

@@ -1,5 +1,6 @@
 ---
 import Base from "../../layouts/Base.astro";
+import { breadcrumbs } from "../../lib/seo";
 import {
   findRegionBySlug,
   getRegionRecords,
@@ -43,8 +44,9 @@ const description = `Регистър на разрешенията за стр�
 ---
 
 <Base
-  title={`Акт 16 и разрешения за строеж в район ${regionName} — Акт 16 Тракер`}
+  title={`Акт 16 в ${regionName}, София — проверка и разрешения`}
   description={description}
+  structuredData={[breadcrumbs([{ name: "Начало", path: "/" }, { name: regionName, path: Astro.url.pathname }])]}
 >
   <nav class="breadcrumb" aria-label="Breadcrumb">
     <a href="/">Начало</a>
@@ -54,19 +56,21 @@ const description = `Регистър на разрешенията за стр�
 
   <header class="region-hero">
     <span class="region-hero__eyebrow">Район в София</span>
-    <h1>{regionName}</h1>
+    <h1>Акт 16 и разрешения за строеж — {regionName}</h1>
     <p class="region-hero__lead">
       {total} строителни документа в публичните регистри на НАГ — {act16.length} удостоверения Акт 16 и {permits.length} разрешения за строеж.
     </p>
+    <p>За проверка на конкретно жилище в район {regionName} отворете съответния регистър и въведете адрес или кадастрален идентификатор. Сравнете местоположението и обхвата на намерения документ.</p>
+    <p><a href="/blog/proverka-akt-16-online/">Как да проверя Акт 16 по адрес?</a></p>
   </header>
 
   <div class="region-stats">
-    <a href={`/register/act16?region=${encodeURIComponent(regionName)}`} class="card region-stat">
+    <a href={`/register/act16/?region=${encodeURIComponent(regionName)}`} class="card region-stat">
       <span class="region-stat__label">Акт 16</span>
       <span class="region-stat__value">{act16.length}</span>
       <span class="region-stat__cta">Виж всички &rarr;</span>
     </a>
-    <a href={`/register/permits?region=${encodeURIComponent(regionName)}`} class="card region-stat region-stat--accent">
+    <a href={`/register/permits/?region=${encodeURIComponent(regionName)}`} class="card region-stat region-stat--accent">
       <span class="region-stat__label">Разрешения за строеж</span>
       <span class="region-stat__value">{permits.length}</span>
       <span class="region-stat__cta">Виж всички &rarr;</span>
@@ -111,11 +115,11 @@ const description = `Регистър на разрешенията за стр�
     <section class="region-section">
       <div class="region-section__head">
         <h2>Последни Акт 16</h2>
-        <a href={`/register/act16?region=${encodeURIComponent(regionName)}`}>Виж всички &rarr;</a>
+        <a href={`/register/act16/?region=${encodeURIComponent(regionName)}`}>Виж всички &rarr;</a>
       </div>
       <div class="recent-grid">
         {recentAct16.map((r) => (
-          <a href={`/register/act16/${recordSlug(r)}`} class="card recent-card">
+          <a href={`/register/act16/${recordSlug(r)}/`} class="card recent-card">
             <div class="recent-card__head">
               <span class="recent-card__num">№ {r.number}</span>
               <span class="recent-card__date">{r.date}</span>
@@ -134,11 +138,11 @@ const description = `Регистър на разрешенията за стр�
     <section class="region-section">
       <div class="region-section__head">
         <h2>Последни разрешения за строеж</h2>
-        <a href={`/register/permits?region=${encodeURIComponent(regionName)}`}>Виж всички &rarr;</a>
+        <a href={`/register/permits/?region=${encodeURIComponent(regionName)}`}>Виж всички &rarr;</a>
       </div>
       <div class="recent-grid">
         {recentPermits.map((r) => (
-          <a href={`/register/permits/${recordSlug(r)}`} class="card recent-card">
+          <a href={`/register/permits/${recordSlug(r)}/`} class="card recent-card">
             <div class="recent-card__head">
               <span class="recent-card__num">№ {r.number}</span>
               <span class="recent-card__date">{r.date}</span>

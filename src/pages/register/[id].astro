@@ -4,8 +4,10 @@ import {
   getRegister,
   getRecords,
   getUniqueDistricts,
+  recordSlug,
   type RegisterId,
 } from "../../lib/data";
+import { breadcrumbs } from "../../lib/seo";
 
 export function getStaticPaths() {
   return [{ params: { id: "act16" } }, { params: { id: "permits" } }];
@@ -17,20 +19,27 @@ const records = getRecords(registerId);
 const districts = getUniqueDistricts(registerId);
 const isPermits = registerId === "permits";
 const metaLabel = isPermits ? "Възложител" : "Надзор";
+const pageTitle = isPermits ? "Разрешения за строеж в София — регистър и проверка" : "Акт 16 регистър — проверка на жилище в София";
+const description = isPermits
+  ? "Проверете разрешение за строеж в София по адрес, район, номер или възложител. Търсене и филтри по дата с данни от публичния регистър на НАГ."
+  : "Търсете Акт 16 в София по адрес, район, номер или идентификатор КККР. Проверка на удостоверенията за въвеждане в експлоатация от регистъра на НАГ.";
+const initialRecords = records.slice(0, 30);
 ---
 
-<Base title={`${register.shortLabel} — Акт 16 Тракер`}>
+<Base title={pageTitle} description={description} structuredData={[breadcrumbs([{ name: "Начало", path: "/" }, { name: register.label, path: Astro.url.pathname }])]}>
   <nav class="register-tabs">
-    <a href="/register/act16" class:list={["tab", { active: registerId === "act16" }]}>
+    <a href="/register/act16/" class:list={["tab", { active: registerId === "act16" }]}>
       Акт 16
     </a>
-    <a href="/register/permits" class:list={["tab", { active: registerId === "permits" }]}>
+    <a href="/register/permits/" class:list={["tab", { active: registerId === "permits" }]}>
       Разрешения за строеж
     </a>
   </nav>
 
   <section class="page-header">
-    <h1>{register.label}</h1>
+    <h1>{pageTitle}</h1>
+    <p>{description}</p>
+    <p><a href={isPermits ? "/blog/razreshenie-za-stroezh/" : "/blog/proverka-akt-16-online/"}>Как да направя справка?</a> · <a href={`/register/${registerId}/archive/1/`}>Разгледай пълния архив по страници</a></p>
     <p id="results-count">{records.length} записа</p>
   </section>
 
@@ -84,7 +93,9 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
   </div>
 
   <!-- Mobile card list -->
-  <div class="mobile-list" id="mobile-list"></div>
+  <div class="mobile-list" id="mobile-list">
+    {initialRecords.map((r) => <article class="card"><a href={`/register/${registerId}/${recordSlug(r)}/`}>№ {r.number} от {r.date} · {r.region}</a><p>{r.object}</p></article>)}
+  </div>
 
   <!-- Desktop table -->
   <div class="table-wrap card">
@@ -122,12 +133,21 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
           <th>Обхват</th>
         </tr>
       </thead>
-      <tbody id="table-body"></tbody>
+      <tbody id="table-body">
+        {initialRecords.map((r) => <tr>
+          <td><a href={`/register/${registerId}/${recordSlug(r)}/`}>№ {r.number}</a></td>
+          <td>{r.date}</td><td>{r.object}</td><td>{r.region}</td>
+          <td>{isPermits ? r.employer : r.constructionOversight}</td><td>{r.scope}</td>
+        </tr>)}
+      </tbody>
     </table>
   </div>
 
   <!-- Pagination -->
   <nav class="pagination" id="pagination" aria-label="Страници"></nav>
+  <p id="load-error" role="status" hidden>Не успяхме да заредим филтрите. <a href={`/register/${registerId}/archive/1/`}>Разгледайте всички документи в архива.</a></p>
+  <noscript><p>За интерактивно търсене включете JavaScript или <a href={`/register/${registerId}/archive/1/`}>разгледайте пълния архив</a>.</p></noscript>
+  <p>Това е информационна справка по данни от НАГ. Липсата на резултат не доказва липса на документ. <a href={isPermits ? "https://nag.sofia.bg/RegisterBuildingPermitsPortal/Index" : "https://nag.sofia.bg/RegisterCertificateForExploitationBuildings"}>Проверете официалния регистър.</a></p>
 
   <script
     id="register-meta"
@@ -251,9 +271,9 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     } else {
       tableBody.innerHTML = page
         .map((r: any) => {
-          const href = `/register/${registerId}/${esc(r.k)}`;
+          const href = `/register/${registerId}/${esc(r.k)}/`;
           return `<tr class="row-link" data-href="${href}" tabindex="0" role="link">
-            <td class="cell-number">${esc(r.n)}</td>
+            <td class="cell-number"><a href="${href}">${esc(r.n)}</a></td>
             <td class="cell-date">${esc(r.d)}</td>
             <td class="cell-object">${esc(truncate(r.o, 180))}</td>
             <td>${r.r ? `<button type="button" class="badge badge--district badge--filter" data-region="${esc(r.r)}">${esc(r.r)}</button>` : '<span class="text-muted">—</span>'}</td>
@@ -265,7 +285,7 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
 
       mobileList.innerHTML = page
         .map((r: any) => {
-          const href = `/register/${registerId}/${esc(r.k)}`;
+          const href = `/register/${registerId}/${esc(r.k)}/`;
           return `<a href="${href}" class="m-card card">
             <div class="m-card__head">
               <span class="m-card__num">№ ${esc(r.n)}</span>
@@ -283,11 +303,12 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
 
     document.querySelectorAll<HTMLElement>(".row-link").forEach((row) => {
       row.addEventListener("click", (e) => {
-        if ((e.target as HTMLElement).closest(".badge--filter")) return;
+        if ((e.target as HTMLElement).closest(".badge--filter, a")) return;
         const href = row.dataset.href;
         if (href) window.location.href = href;
       });
       row.addEventListener("keydown", (e) => {
+        if (e.target !== row) return;
         if (e.key === "Enter" || e.key === " ") {
           e.preventDefault();
           const href = row.dataset.href;
@@ -404,13 +425,13 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
     if (currentPage > 1) params.set("page", String(currentPage));
 
     const qs = params.toString();
-    const newUrl = `/register/${registerId}${qs ? "?" + qs : ""}`;
+    const newUrl = `/register/${registerId}/${qs ? "?" + qs : ""}`;
     history.replaceState(null, "", newUrl);
   }
 
   function restoreFromUrl() {
     const params = new URLSearchParams(window.location.search);
-    if (params.has("region")) regionSelect.value = params.get("region")!;
+    if (params.has("region")) regionSelect.value = params.get("region")!.replace(/\s+/g, " ").trim();
     if (params.has("q")) searchInput.value = params.get("q")!;
     if (params.has("from")) dateFrom.value = params.get("from")!;
     if (params.has("to")) dateTo.value = params.get("to")!;
@@ -538,15 +559,13 @@ const metaLabel = isPermits ? "Възложител" : "Надзор";
 
   // Init: fetch data then render
   async function init() {
-    tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Зареждане…</td></tr>`;
-    mobileList.innerHTML = `<p class="empty-state-mobile">Зареждане…</p>`;
     try {
       const res = await fetch(`/api/${registerId}.json`);
+      if (!res.ok) throw new Error("Register request failed");
       allRecords = await res.json();
       resultsCount.textContent = `${allRecords.length} записа`;
     } catch {
-      tableBody.innerHTML = `<tr><td colspan="6" class="empty-state">Грешка при зареждане на данните</td></tr>`;
-      mobileList.innerHTML = `<p class="empty-state-mobile">Грешка при зареждане</p>`;
+      document.getElementById("load-error")!.hidden = false;
       return;
     }
     restoreFromUrl();

@@ -1,5 +1,6 @@
 ---
 import Base from "../../../layouts/Base.astro";
+import { breadcrumbs } from "../../../lib/seo";
 import {
   getRegister,
   findRecordBySlug,
@@ -17,7 +18,7 @@ const registerId = Astro.params.id as RegisterId;
 const slug = Astro.params.slug!;
 
 if (registerId !== "act16" && registerId !== "permits") {
-  return Astro.redirect("/");
+  return new Response("Not found", { status: 404 });
 }
 
 const register = getRegister(registerId);
@@ -43,15 +44,17 @@ const mapsUrl = mapsQuery
   ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(mapsQuery)}`
   : null;
 
-const pageTitle = `${register.shortLabel} № ${record.number} от ${record.date}`;
-const metaDescription = `${record.documentType}${record.region ? " в район " + record.region : ""}. ${record.object.slice(0, 140)}`;
+const pageTitle = `${isPermit ? "Разрешение за строеж" : "Акт 16"} № ${record.number} от ${record.date}${record.region ? ` — ${record.region}` : ""}`;
+const metaDescription = `${record.documentType} № ${record.number} от ${record.date}${record.region ? " в район " + record.region : ""}, София. ${record.object}`.slice(0, 165);
 ---
 
-<Base title={`${pageTitle} — Акт 16 Тракер`} description={metaDescription}>
+<Base title={pageTitle} description={metaDescription} structuredData={[breadcrumbs([
+  { name: "Начало", path: "/" }, { name: register.label, path: `/register/${registerId}/` }, { name: `№ ${record.number} от ${record.date}`, path: Astro.url.pathname },
+])]}>
   <nav class="breadcrumb" aria-label="Breadcrumb">
     <a href="/">Начало</a>
     <span class="breadcrumb__sep">/</span>
-    <a href={`/register/${registerId}`}>{register.shortLabel}</a>
+    <a href={`/register/${registerId}/`}>{register.shortLabel}</a>
     <span class="breadcrumb__sep">/</span>
     <span class="breadcrumb__current">№ {record.number}</span>
   </nav>
@@ -59,14 +62,14 @@ const metaDescription = `${record.documentType}${record.region ? " в район
   <article class="detail">
     <header class="detail__header">
       <p class="detail__type">{record.documentType}</p>
-      <h1 class="detail__number">№ {record.number}</h1>
+      <h1 class="detail__number">{isPermit ? "Разрешение за строеж" : "Удостоверение за въвеждане в експлоатация"} № {record.number}</h1>
       <div class="detail__meta">
         <span class="detail__date">
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
           {record.date}
         </span>
         {record.region && (
-          <a href={`/region/${slugifyRegion(record.region)}`} class="badge badge--district">
+          <a href={`/region/${slugifyRegion(record.region)}/`} class="badge badge--district">
             {record.region}
           </a>
         )}
@@ -141,7 +144,7 @@ const metaDescription = `${record.documentType}${record.region ? " в район
             <ul class="related-list">
               {related.otherRegister.map((r) => (
                 <li>
-                  <a href={`/register/${otherRegisterId}/${recordSlug(r)}`} class="related-card card">
+                  <a href={`/register/${otherRegisterId}/${recordSlug(r)}/`} class="related-card card">
                     <div class="related-card__head">
                       <span class="related-card__num">№ {r.number}</span>
                       <span class="related-card__date">{r.date}</span>
@@ -162,7 +165,7 @@ const metaDescription = `${record.documentType}${record.region ? " в район
             <ul class="related-list">
               {related.sameCadastre.map((r) => (
                 <li>
-                  <a href={`/register/${registerId}/${recordSlug(r)}`} class="related-card card">
+                  <a href={`/register/${registerId}/${recordSlug(r)}/`} class="related-card card">
                     <div class="related-card__head">
                       <span class="related-card__num">№ {r.number}</span>
                       <span class="related-card__date">{r.date}</span>
