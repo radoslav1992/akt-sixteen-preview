@@ -1,0 +1,42 @@
+---
+// "Ticket" card for a single document: stage colour edge, number, date, district, description.
+import { recordSlug, type Record, type RegisterId } from "../lib/data";
+import { sentenceCase, truncate, longDate } from "../lib/format";
+interface Props { registerId: RegisterId; record: Record; headingLevel?: "h3" | "h4" }
+const { registerId, record: r, headingLevel = "h3" } = Astro.props;
+const party = registerId === "permits" ? r.employer : r.constructionOversight;
+const Heading = headingLevel;
+---
+<a class:list={["ticket", `ticket--${registerId}`]} href={`/register/${registerId}/${recordSlug(r)}/`}>
+  <span class="ticket__top">
+    <span class:list={["badge", `badge--${registerId}`]}>{registerId === "act16" ? "Акт 16" : "Разрешение"}</span>
+    <time datetime={r.date.split(".").reverse().join("-")}>{longDate(r.date)}</time>
+  </span>
+  <Heading class="ticket__title">{truncate(sentenceCase(r.object), 120)}</Heading>
+  <span class="ticket__meta">
+    <span class="mono">№ {r.number}</span>
+    {r.region && <span>· {r.region}</span>}
+  </span>
+  {party && <span class="ticket__party">{registerId === "permits" ? "Възложител" : "Надзор"}: {truncate(party, 70)}</span>}
+</a>
+
+<style>
+  .ticket {
+    position: relative; display: flex; flex-direction: column; gap: 0.5rem;
+    background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg);
+    padding: 1rem 1.1rem 1rem 1.35rem; color: inherit; overflow: hidden;
+    transition: transform var(--transition), box-shadow var(--transition), border-color var(--transition);
+  }
+  .ticket::before { content: ""; position: absolute; left: 0; top: 0; bottom: 0; width: 6px; }
+  .ticket--act16::before { background: var(--mark-act16); }
+  .ticket--permits::before { background: var(--mark-permits); }
+  .ticket::after {
+    content: ""; position: absolute; right: -10px; top: 50%; width: 20px; height: 20px; border-radius: 50%;
+    background: var(--bg); border: 1px solid var(--line); transform: translateY(-50%);
+  }
+  .ticket:hover { transform: translateY(-2px); box-shadow: var(--shadow); border-color: var(--line-strong); color: inherit; }
+  .ticket__top { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; font-size: 0.82rem; color: var(--muted); }
+  .ticket__title { font-family: var(--font-sans); font-size: 1rem; font-weight: 700; line-height: 1.4; letter-spacing: 0; color: var(--ink); padding-right: 0.6rem; }
+  .ticket__meta { font-size: 0.85rem; color: var(--ink-2); display: flex; gap: 0.35rem; flex-wrap: wrap; }
+  .ticket__party { font-size: 0.8rem; color: var(--muted); border-top: 1px dashed var(--line-strong); padding-top: 0.5rem; margin-top: auto; }
+</style>

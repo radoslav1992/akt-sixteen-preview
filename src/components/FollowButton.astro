@@ -1,0 +1,19 @@
+---
+import Icon from "./Icon.astro";
+interface Props { kind: "record" | "parcel" | "company" | "region" | "neighborhood" | "search"; itemKey: string; label: string; url: string; class?: string }
+const { kind, itemKey, label, url, class: className } = Astro.props;
+---
+<button
+  type="button"
+  class:list={["btn btn--ghost btn--sm follow-btn", className]}
+  data-follow
+  data-kind={kind}
+  data-key={itemKey}
+  data-label={label}
+  data-url={url}
+  aria-pressed="false"
+  hidden
+>
+  <Icon name="star" size={16} />
+  <span data-follow-text>Следи</span>
+</button>

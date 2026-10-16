@@ -1,0 +1,86 @@
+---
+import Base from "../../layouts/Base.astro";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import Icon from "../../components/Icon.astro";
+import { breadcrumbs } from "../../lib/seo";
+import { getListedCompanies, type Company } from "../../lib/companies";
+import { fmtNumber } from "../../lib/format";
+
+const companies = getListedCompanies();
+const investors = companies.filter((c) => !c.publicBody && c.employerCount >= c.oversightCount);
+const oversight = companies.filter((c) => !c.publicBody && c.oversightCount > c.employerCount);
+const publicBodies = companies.filter((c) => c.publicBody);
+const row = (c: Company) => ({ c, n: c.docs.length, last: c.lastDate.slice(-4) });
+---
+
+<Base
+  title="Фирми в строителството в София — инвеститори и строителен надзор"
+  description={`Каталог на ${fmtNumber(companies.length)} фирми с разрешения за строеж и обекти с Акт 16 в София: инвеститори (възложители) и фирми за строителен надзор, с история на документите им.`}
+  structuredData={[breadcrumbs([{ name: "Начало", path: "/" }, { name: "Фирми", path: "/company/" }])]}
+>
+  <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "Фирми" }]} />
+  <header class="page-head">
+    <span class="eyebrow">Каталог</span>
+    <h1>Инвеститори и строителен надзор в София</h1>
+    <p class="page-head__lead">{fmtNumber(companies.length)} фирми и публични възложители с поне два документа в регистрите на НАГ. Профилите показват всички разрешения за строеж и обекти с Акт 16 по години и райони. Частни лица не се показват.</p>
+    <div class="company-filter">
+      <label for="company-q" class="sr-only">Търсене на фирма</label>
+      <div class="searchbar searchbar--flat"><Icon name="search" /><input id="company-q" type="search" placeholder="Име на фирма, напр. „Софинвест“" autocomplete="off" /></div>
+      <p class="muted" id="company-count" role="status"></p>
+    </div>
+  </header>
+
+  <nav class="tabs company-tabs" aria-label="Раздели">
+    <a href="#investitori">Възложители ({investors.length})</a>
+    <a href="#nadzor">Строителен надзор ({oversight.length})</a>
+    {publicBodies.length > 0 && <a href="#publichni">Публични органи</a>}
+  </nav>
+
+  {[
+    { id: "investitori", title: "Инвеститори и възложители", note: "Подредени по брой разрешения за строеж и документи.", list: investors, tone: "permits" },
+    { id: "nadzor", title: "Фирми за строителен надзор", note: "Подредени по брой обекти с удостоверение за въвеждане в експлоатация.", list: oversight, tone: "act16" },
+    { id: "publichni", title: "Публични възложители", note: "Общината и районните администрации като възложители.", list: publicBodies, tone: "permits" },
+  ].filter((s) => s.list.length).map((s) => (
+    <section class="section company-section" id={s.id} aria-labelledby={`${s.id}-title`}>
+      <div class="section-head"><div><h2 id={`${s.id}-title`}>{s.title}</h2><p>{s.note}</p></div></div>
+      <ol class="company-list">
+        {s.list.map(row).map(({ c, n, last }) => (
+          <li data-name={c.name.toLocaleLowerCase("bg-BG")}>
+            <a href={`/company/${c.slug}/`}>
+              <span class="company-list__name">{c.display}</span>
+              <span class="company-list__meta"><span class:list={["badge", `badge--${s.tone}`]}>{n}</span> <span class="muted">до {last}</span></span>
+            </a>
+          </li>
+        ))}
+      </ol>
+    </section>
+  ))}
+</Base>
+
+<script>
+  const input = document.getElementById("company-q") as HTMLInputElement;
+  const count = document.getElementById("company-count")!;
+  const items = [...document.querySelectorAll<HTMLLIElement>(".company-list li")];
+  input.addEventListener("input", () => {
+    const q = input.value.trim().toLocaleLowerCase("bg-BG").replace(/["„“]/g, "");
+    let shown = 0;
+    for (const li of items) {
+      const match = !q || li.dataset.name!.includes(q);
+      li.hidden = !match;
+      if (match) shown++;
+    }
+    count.textContent = q ? `${shown} съвпадения` : "";
+  });
+</script>
+
+<style>
+  .company-filter { max-width: 620px; margin-top: 1.2rem; display: grid; gap: 0.4rem; }
+  .company-tabs { margin-top: 1.5rem; }
+  .company-section { scroll-margin-top: 90px; }
+  .company-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 340px), 1fr)); gap: 0.4rem 1rem; }
+  .company-list a { display: flex; justify-content: space-between; align-items: center; gap: 0.75rem; padding: 0.6rem 0.75rem; border-radius: var(--radius-sm); border-bottom: 1px solid var(--line); color: var(--ink); }
+  .company-list a:hover { background: var(--surface); color: var(--ink); }
+  .company-list__name { font-weight: 600; overflow-wrap: anywhere; }
+  .company-list__meta { display: inline-flex; align-items: center; gap: 0.35rem; flex-shrink: 0; font-size: 0.82rem; }
+  .company-list__meta .badge { font-family: var(--font-mono); }
+</style>

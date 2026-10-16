@@ -1,0 +1,22 @@
+---
+import Base from "../layouts/Base.astro";
+import Icon from "../components/Icon.astro";
+---
+<Base title="Страницата не е намерена | Акт 16" description="Страницата не е намерена." noindex>
+  <section class="nf panel-dark blueprint">
+    <div class="stamp nf__stamp">Грешка 404<small>няма такъв обект</small></div>
+    <h1>Тук още няма строеж</h1>
+    <p>Страницата, която търсите, не съществува или е преместена. Опитайте с проверка на имот или разгледайте регистрите.</p>
+    <form action="/check/" method="get" role="search" class="nf__search">
+      <label for="nf-q" class="sr-only">Търсене</label>
+      <div class="searchbar"><input id="nf-q" name="q" type="search" placeholder="Адрес, квартал или 68134.…" /><button class="btn btn--primary" type="submit"><Icon name="search" /> Търси</button></div>
+    </form>
+    <p class="nf__links"><a href="/">Начало</a> · <a href="/register/act16/">Акт 16</a> · <a href="/register/permits/">Разрешения</a> · <a href="/map/">Карта</a></p>
+  </section>
+</Base>
+<style>
+  .nf { padding: clamp(1.5rem, 1rem + 4vw, 4rem); display: grid; gap: 1rem; margin-top: 1rem; }
+  .nf h1 { font-size: clamp(2.2rem, 1.5rem + 3vw, 4rem); text-transform: uppercase; }
+  .nf__stamp { color: var(--yellow); justify-self: start; }
+  .nf__search { max-width: 640px; }
+</style>

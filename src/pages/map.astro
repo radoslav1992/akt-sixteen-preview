@@ -1,0 +1,146 @@
+---
+import Base from "../layouts/Base.astro";
+import Icon from "../components/Icon.astro";
+import BulgariaMap from "../components/BulgariaMap.astro";
+import { breadcrumbs } from "../lib/seo";
+import { getAllRegionsWithSlugs } from "../lib/data";
+import { BUILDING_TYPES } from "../lib/classify";
+import { fmtNumber } from "../lib/format";
+import points from "../../data/geo/points.json";
+
+const regions = getAllRegionsWithSlugs();
+const counts = (points as { counts: { [k: string]: number } }).counts;
+const precise = (counts.address ?? 0) + (counts.locality ?? 0);
+const settlement = counts.settlement ?? 0;
+const years = [2021, 2022, 2023, 2024, 2025, 2026];
+---
+
+<Base
+  title="Карта на строителството в София — разрешения за строеж и Акт 16"
+  description="Интерактивна карта на разрешенията за строеж и удостоверенията Акт 16 в София по райони, квартали и села, с филтри по година, тип сграда и регистър."
+  structuredData={[breadcrumbs([{ name: "Начало", path: "/" }, { name: "Карта", path: "/map/" }])]}
+  bleed
+>
+  <div class="map-app">
+    <aside class="map-panel" aria-label="Филтри на картата">
+      <div class="map-panel__head">
+        <span class="eyebrow">Карта · Столична община</span>
+        <h1>Карта на строителството в София</h1>
+        <p>Разрешения за строеж и Акт 16 по райони, квартали и села. Кликнете върху кръг или обект за подробности.</p>
+      </div>
+
+      <fieldset class="map-filter">
+        <legend class="field__label">Регистър</legend>
+        <label class="toggle"><input type="checkbox" name="reg" value="0" checked /> <span class="dot dot--act16"></span> Акт 16</label>
+        <label class="toggle"><input type="checkbox" name="reg" value="1" checked /> <span class="dot dot--permits"></span> Разрешения за строеж</label>
+      </fieldset>
+
+      <fieldset class="map-filter">
+        <legend class="field__label">Година</legend>
+        <div class="chip-row" id="year-chips">
+          <button type="button" class="chip chip--active" data-year="all">Всички</button>
+          {years.map((y) => <button type="button" class="chip" data-year={y}>{y}</button>)}
+        </div>
+      </fieldset>
+
+      <div class="field map-filter">
+        <label class="field__label" for="type-filter">Тип сграда</label>
+        <select id="type-filter">
+          <option value="">Всички типове</option>
+          {BUILDING_TYPES.map((t) => <option value={t.id}>{t.label}</option>)}
+        </select>
+      </div>
+
+      <fieldset class="map-filter">
+        <legend class="field__label">Слоеве</legend>
+        <label class="toggle"><input type="checkbox" id="layer-districts" checked /> Райони (кръгове)</label>
+        <label class="toggle"><input type="checkbox" id="layer-settlements" checked /> Села и градове</label>
+        <label class="toggle"><input type="checkbox" id="layer-points" checked /> Отделни обекти</label>
+      </fieldset>
+
+      <div class="map-summary" role="status" aria-live="polite">
+        <span class="mono" id="map-count">—</span>
+        <span>документа отговарят на филтрите</span>
+      </div>
+
+      <p class="map-note">
+        <Icon name="info" size={16} />
+        <span>Точни локации: {fmtNumber(precise)} обекта, по село или град: {fmtNumber(settlement)}. Останалите са показани в кръга на района. Картата се допълва всеки ден.</span>
+      </p>
+    </aside>
+
+    <div class="map-canvas">
+      <div id="map" role="region" aria-label="Интерактивна карта"></div>
+      <noscript><p class="notice">Картата изисква JavaScript. Разгледайте <a href="/region/">райони</a> и <a href="/neighborhood/">квартали</a>.</p></noscript>
+    </div>
+  </div>
+
+  <div class="container map-seo">
+    <section class="section grid-2">
+      <div class="prose">
+        <h2>Как да използвате картата</h2>
+        <p>Кръговете показват броя на документите във всеки район на София според избраните филтри. Селата и градовете в Столична община (Бистрица, Лозен, Банкя, Нови Искър и др.) са отбелязани с отделен знак. С приближаване се появяват отделните обекти с точен адрес или квартал.</p>
+        <p>Местоположенията са определени автоматично по адреса и местността в регистъра и може да са приблизителни. За конкретен имот използвайте <a href="/check/">проверката по адрес или кадастрален идентификатор</a>.</p>
+        <p class="muted">Карта: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>. Геокодиране: Nominatim / OpenStreetMap.</p>
+      </div>
+      <div class="panel-dark blueprint locator">
+        <span class="eyebrow">Покритие</span>
+        <h2>Данните покриват Столична община</h2>
+        <BulgariaMap />
+      </div>
+    </section>
+
+    <section class="section">
+      <h2 class="regions-title">Райони на картата</h2>
+      <ul class="region-list">
+        {regions.map((r) => <li><a href={`/region/${r.slug}/`}>{r.name}</a> <span class="mono muted">{fmtNumber(r.act16 + r.permits)}</span></li>)}
+      </ul>
+    </section>
+  </div>
+</Base>
+
+<script>
+  import { initMap } from "../scripts/map";
+  initMap();
+</script>
+
+<style>
+  .map-app { display: grid; grid-template-rows: auto; }
+  .map-canvas { position: relative; height: 68vh; min-height: 420px; order: -1; }
+  #map { position: absolute; inset: 0; background: var(--bg-deep); }
+  .map-panel { padding: 1.1rem var(--gutter) 1.5rem; display: grid; gap: 1rem; align-content: start; background: var(--surface); border-bottom: 1px solid var(--line); }
+  @media (min-width: 960px) {
+    .map-app { grid-template-columns: 360px 1fr; height: calc(100dvh - 67px); }
+    .map-canvas { order: 0; height: auto; }
+    .map-panel { overflow-y: auto; border-right: 1px solid var(--line); border-bottom: 0; }
+  }
+  .map-panel__head h1 { font-size: 1.9rem; margin-top: 0.5rem; }
+  .map-panel__head p { color: var(--muted); font-size: 0.93rem; margin-top: 0.5rem; }
+  .map-filter { border: 0; display: grid; gap: 0.45rem; }
+  .map-filter legend { margin-bottom: 0.45rem; }
+  .toggle { display: flex; align-items: center; gap: 0.5rem; font-weight: 600; cursor: pointer; }
+  .toggle input { width: 18px; height: 18px; accent-color: var(--ink); }
+  .map-summary { display: flex; align-items: baseline; gap: 0.5rem; padding: 0.8rem 1rem; background: var(--asphalt); color: var(--asphalt-text); border-radius: var(--radius); }
+  .map-summary .mono { font-size: 1.6rem; font-weight: 700; color: var(--yellow); white-space: nowrap; }
+  .map-note { display: flex; gap: 0.5rem; font-size: 0.82rem; color: var(--muted); }
+  .map-note :global(svg) { flex-shrink: 0; margin-top: 0.15rem; }
+  .map-seo { padding-bottom: 2rem; }
+  .locator { padding: 1.5rem; display: grid; gap: 0.75rem; }
+  .locator .eyebrow { color: var(--yellow); }
+  .regions-title { font-size: 1.4rem; margin-bottom: 0.8rem; }
+  .region-list { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.3rem 1rem; }
+  .region-list li { display: flex; justify-content: space-between; border-bottom: 1px dashed var(--line); padding: 0.3rem 0; }
+
+  :global(.leaflet-container) { font-family: var(--font-sans); }
+  :global(.map-cluster) { display: grid; place-items: center; border-radius: 50%; background: var(--yellow); color: var(--yellow-ink); font-family: var(--font-mono); font-weight: 700; font-size: 12px; border: 2px solid #121418; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+  :global(.map-village) { display: grid; place-items: center; background: #121418; color: var(--yellow); font-family: var(--font-mono); font-weight: 700; font-size: 11px; border-radius: 6px; border: 2px solid var(--yellow); box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); }
+  :global(.map-dot) { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.4); }
+  :global(.map-dot--0) { background: var(--mark-act16); }
+  :global(.map-dot--1) { background: var(--mark-permits); }
+  :global(.map-popup h3) { font-family: var(--font-display); font-size: 1.1rem; margin-bottom: 0.3rem; }
+  :global(.map-popup p) { margin: 0.2rem 0; font-size: 0.85rem; color: #2c3038; }
+  :global(.map-popup a) { font-weight: 700; }
+  :global(.map-label) { background: rgba(18, 20, 24, 0.85); color: #fff; border: 0; border-radius: 4px; font-weight: 700; font-size: 11px; padding: 1px 6px; box-shadow: none; }
+  :global(.map-label::before) { display: none; }
+  :global(.leaflet-tooltip.map-label) { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.04em; }
+</style>

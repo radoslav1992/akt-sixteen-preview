@@ -1,0 +1,27 @@
+---
+// Locator map: Bulgaria's provinces with Sofia (Столична община) highlighted.
+import shapes from "../data/geo-shapes.json";
+interface Props { class?: string }
+const { class: className } = Astro.props;
+const b = shapes.bulgaria;
+const [minLng, minLat, maxLng, maxLat] = b.bbox;
+const k = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+const scale = b.width / ((maxLng - minLng) * k);
+const [sx, sy] = [(23.3217 - minLng) * k * scale, (maxLat - 42.6977) * scale];
+---
+<svg class:list={["bg-map", className]} viewBox={`-4 -4 ${b.width + 8} ${b.height + 8}`} role="img" aria-label="България — данните в момента покриват Столична община">
+  {b.provinces.map((p) => <path d={p.d} class:list={{ "is-sofia": p.nuts3 === "SOF" }} />)}
+  <circle cx={sx} cy={sy} r="16" class="bg-map__pulse" />
+  <circle cx={sx} cy={sy} r="6" class="bg-map__pin" />
+  <text x={sx + 14} y={sy - 12} class="bg-map__label">София</text>
+</svg>
+
+<style>
+  .bg-map { width: 100%; height: auto; }
+  .bg-map path { fill: rgba(255, 255, 255, 0.06); stroke: rgba(255, 255, 255, 0.28); stroke-width: 0.8; }
+  .bg-map path.is-sofia { fill: var(--yellow); stroke: var(--yellow); }
+  .bg-map__pin { fill: var(--yellow); stroke: #121418; stroke-width: 2; }
+  .bg-map__pulse { fill: none; stroke: var(--yellow); stroke-width: 2; opacity: 0.6; transform-box: fill-box; transform-origin: center; animation: pulse 2.4s ease-out infinite; }
+  .bg-map__label { font-family: var(--font-display); font-weight: 800; font-size: 20px; fill: #fff; text-transform: uppercase; letter-spacing: 0.06em; }
+  @keyframes pulse { from { transform: scale(0.4); opacity: 0.9; } to { transform: scale(1.6); opacity: 0; } }
+</style>

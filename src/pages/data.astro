@@ -1,0 +1,83 @@
+---
+import Base from "../layouts/Base.astro";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import Icon from "../components/Icon.astro";
+import { breadcrumbs } from "../lib/seo";
+import { getRegister } from "../lib/data";
+import { fmtNumber } from "../lib/format";
+
+const act16 = getRegister("act16");
+const permits = getRegister("permits");
+const updated = new Date(act16.lastUpdated);
+const files = [
+  { name: "Акт 16 — удостоверения за въвеждане в експлоатация", href: "/downloads/act16.csv", format: "CSV", count: act16.total, since: "2023" },
+  { name: "Разрешения за строеж", href: "/downloads/permits.csv", format: "CSV", count: permits.total, since: "2021" },
+  { name: "Акт 16 — JSON (за приложения)", href: "/api/act16.json", format: "JSON", count: act16.total, since: "2023" },
+  { name: "Разрешения за строеж — JSON", href: "/api/permits.json", format: "JSON", count: permits.total, since: "2021" },
+];
+const datasets = [act16, permits].map((reg) => ({
+  "@context": "https://schema.org",
+  "@type": "Dataset",
+  name: `${reg.label} — Столична община`,
+  description: `Всички записи от регистъра „${reg.label}“ на Направление „Архитектура и градоустройство“, Столична община, с район, квартал, тип сграда и кадастрален идентификатор. Обновява се ежедневно.`,
+  url: "https://akt16.org/data/",
+  keywords: ["Акт 16", "разрешения за строеж", "София", "строителство", "отворени данни"],
+  isAccessibleForFree: true,
+  creator: { "@type": "Organization", name: "Акт 16 Тракер", url: "https://akt16.org/" },
+  isBasedOn: "https://nag.sofia.bg/",
+  spatialCoverage: { "@type": "Place", name: "Столична община, България" },
+  temporalCoverage: `${reg.id === "act16" ? "2023" : "2021"}/..`,
+  dateModified: reg.lastUpdated,
+  distribution: [
+    { "@type": "DataDownload", encodingFormat: "text/csv", contentUrl: `https://akt16.org/downloads/${reg.id}.csv` },
+    { "@type": "DataDownload", encodingFormat: "application/json", contentUrl: `https://akt16.org/api/${reg.id}.json` },
+  ],
+}));
+---
+
+<Base
+  title="Отворени данни — разрешения за строеж и Акт 16 в София (CSV)"
+  description="Изтеглете всички разрешения за строеж и удостоверения за въвеждане в експлоатация (Акт 16) в София като CSV или JSON, с район, квартал и тип сграда. Обновява се ежедневно."
+  structuredData={[...datasets, breadcrumbs([{ name: "Начало", path: "/" }, { name: "Отворени данни", path: "/data/" }])]}
+>
+  <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "Отворени данни" }]} />
+  <header class="page-head">
+    <span class="eyebrow">За журналисти, изследователи и разработчици</span>
+    <h1>Отворени данни за строителството в София</h1>
+    <p class="page-head__lead">Целите регистри като таблици: {fmtNumber(act16.total)} удостоверения и {fmtNumber(permits.total)} разрешения за строеж, допълнени с квартал, тип сграда и кадастрален идентификатор. Последно обновяване: {updated.toLocaleDateString("bg-BG", { day: "numeric", month: "long", year: "numeric" })}.</p>
+  </header>
+
+  <section class="section files">
+    {files.map((f) => (
+      <a class="card file" href={f.href} download>
+        <span class="file__format">{f.format}</span>
+        <span class="file__body">
+          <strong>{f.name}</strong>
+          <span class="muted">{fmtNumber(f.count)} записа · от {f.since} г.</span>
+        </span>
+        <Icon name="download" size={22} />
+      </a>
+    ))}
+  </section>
+
+  <section class="section grid-2">
+    <div class="prose">
+      <h2>Полета</h2>
+      <p>Номер, дата, вид документ, статус, издател, възложител или строителен надзор, описание на строежа, тип сграда (автоматично), район, квартал, идентификатор КККР, местоположение и линк към страницата на документа.</p>
+      <p>В CSV файловете имената на физически лица са заменени с „физическо лице“. Фирмите са с пълните си имена.</p>
+    </div>
+    <div class="prose">
+      <h2>Условия</h2>
+      <p>Данните произхождат от публичните регистри на <a href="https://nag.sofia.bg">НАГ — Столична община</a>. При използване посочете източника: „Акт 16 Тракер (akt16.org) по данни на НАГ — Столична община“. Типът сграда и кварталът са определени автоматично и може да съдържат неточности.</p>
+      <p>Абонирайте се за новите записи чрез <a href="/rss.xml">RSS</a> или следете конкретен район, например <a href="/region/mladost/rss.xml">Младост</a>.</p>
+    </div>
+  </section>
+</Base>
+
+<style>
+  .files { display: grid; gap: 0.75rem; }
+  @media (min-width: 900px) { .files { grid-template-columns: 1fr 1fr; } }
+  .file { display: flex; align-items: center; gap: 1rem; color: var(--ink); }
+  .file__format { font-family: var(--font-mono); font-weight: 700; background: var(--ink); color: var(--yellow); padding: 0.5rem 0.65rem; border-radius: var(--radius-sm); }
+  .file__body { flex: 1; display: grid; gap: 0.2rem; }
+</style>

@@ -1,0 +1,97 @@
+---
+import Base from "../layouts/Base.astro";
+import Icon from "../components/Icon.astro";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import FaqList from "../components/FaqList.astro";
+import { breadcrumbs } from "../lib/seo";
+import { getCombinedStats } from "../lib/data";
+import { fmtNumber } from "../lib/format";
+
+const stats = getCombinedStats();
+const faq = [
+  { q: "По какво мога да търся?", a: "По улица, квартал или местност, номер на документ, име на фирма (възложител или надзор) и кадастрален идентификатор, например 68134.4082.123. Можете да въведете и само началото на идентификатора." },
+  { q: "Как се групират резултатите?", a: "Документите със същия кадастрален идентификатор се показват заедно като история на имота — от разрешението за строеж до удостоверението за въвеждане в експлоатация." },
+  { q: "Няма удостоверение в историята — какво означава?", a: "Само че в регистъра на НАГ няма удостоверение със същия идентификатор. Сградата може да е от I–III категория (разрешение за ползване от ДНСК), още да се строи или документът да е издаден с друг идентификатор." },
+];
+---
+
+<Base
+  title="Проверка на имот по адрес или кадастрален номер — история на строежа"
+  description="Проверете имот в София по адрес, квартал, фирма или идентификатор КККР: всички разрешения за строеж и удостоверения Акт 16 за същия имот, подредени във времето."
+  structuredData={[
+    breadcrumbs([{ name: "Начало", path: "/" }, { name: "Проверка на имот", path: "/check/" }]),
+    { "@context": "https://schema.org", "@type": "WebApplication", name: "Проверка на имот — Акт 16 Тракер", url: "https://akt16.org/check/", applicationCategory: "UtilitiesApplication", operatingSystem: "Any", offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" }, inLanguage: "bg" },
+  ]}
+>
+  <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "Проверка на имот" }]} />
+
+  <section class="check-hero panel-dark blueprint">
+    <span class="eyebrow">Инструмент</span>
+    <h1>Проверка на имот: разрешения и Акт 16 по адрес</h1>
+    <p>Търсете в {fmtNumber(stats.totalAct16 + stats.totalPermits)} документа от двата регистъра. Резултатите са групирани по кадастрален идентификатор, за да видите цялата история на имота.</p>
+    <form class="check-form" role="search" id="check-form">
+      <label for="check-q" class="sr-only">Адрес, квартал, фирма, номер или идентификатор КККР</label>
+      <div class="searchbar">
+        <input id="check-q" name="q" type="search" placeholder="Напр. Манастирски ливади, ул. Кутловица или 68134.702" autocomplete="off" />
+        <button class="btn btn--primary" type="submit"><Icon name="search" /> Провери</button>
+      </div>
+    </form>
+    <p class="check-hint">Съвет: най-точно е търсенето по кадастрален идентификатор. Адресите в регистрите често са записани различно.</p>
+  </section>
+
+  <div class="check-status" id="check-status" role="status" aria-live="polite"></div>
+  <div class="check-results" id="check-results"></div>
+  <button type="button" class="btn btn--ghost check-more" id="check-more" hidden>Покажи още</button>
+
+  <section class="section grid-2 check-help">
+    <div class="prose">
+      <h2>Как да четете резултата</h2>
+      <ul>
+        <li><b>Разрешение за строеж</b> — строежът е разрешен (етап 1).</li>
+        <li><b>Акт 16 / удостоверение</b> — строежът е въведен в експлоатация (етап 3).</li>
+        <li><b>Само разрешение</b> — строежът може още да не е завършен или документът за ползване е издаден от ДНСК.</li>
+      </ul>
+      <p>Липсата на резултат не доказва липса на документ. Потвърдете в <a href="https://nag.sofia.bg/RegisterCertificateForExploitationBuildings">официалния регистър на НАГ</a> и при необходимост в <a href="https://dnsk.bg/registri/publichen-registar-na-razresheniyata-za-polzvane-izdadeni-ot-dnsk/">регистъра на ДНСК</a>. Повече в <a href="/blog/proverka-akt-16-online/">ръководството за проверка</a>.</p>
+    </div>
+    <div>
+      <h2 class="faq-title">Въпроси</h2>
+      <FaqList items={faq} />
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { initCheck } from "../scripts/check";
+  initCheck();
+</script>
+
+<style>
+  .check-hero { padding: clamp(1.4rem, 1rem + 3vw, 3rem); display: grid; gap: 0.9rem; }
+  .check-hero .eyebrow { color: var(--yellow); }
+  .check-hero h1 { font-size: clamp(2rem, 1.4rem + 2.6vw, 3.4rem); text-transform: uppercase; max-width: 900px; }
+  .check-hero p { max-width: 720px; }
+  .check-form { max-width: 760px; margin-top: 0.5rem; }
+  .check-hint { font-size: 0.88rem; }
+  .check-status { margin: 1.5rem 0 0.75rem; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .check-status:empty { display: none; }
+  .check-results { display: grid; gap: 0.9rem; }
+  .check-more { margin: 1rem auto 0; display: flex; }
+  .check-help { margin-top: 3rem; }
+  .faq-title { font-size: 1.5rem; margin-bottom: 1rem; }
+  :global(.parcel) { background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); overflow: hidden; }
+  :global(.parcel__head) { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; align-items: center; justify-content: space-between; padding: 0.9rem 1.1rem; background: var(--surface-2); border-bottom: 1px solid var(--line); }
+  :global(.parcel__id) { font-family: var(--font-mono); font-weight: 700; color: var(--ink); }
+  :global(.parcel__place) { color: var(--muted); font-size: 0.9rem; }
+  :global(.parcel__status) { display: flex; flex-wrap: wrap; gap: 0.4rem; }
+  :global(.parcel__docs) { list-style: none; }
+  :global(.parcel__docs li + li) { border-top: 1px dashed var(--line); }
+  :global(.parcel__docs a) { display: grid; grid-template-columns: 6px 1fr; gap: 0.2rem 0.85rem; padding: 0.75rem 1.1rem; color: inherit; }
+  :global(.parcel__docs a:hover) { background: var(--surface-2); color: inherit; }
+  :global(.parcel__bar) { grid-row: span 2; border-radius: 3px; }
+  :global(.parcel__bar--act16) { background: var(--mark-act16); }
+  :global(.parcel__bar--permits) { background: var(--mark-permits); }
+  :global(.parcel__meta) { font-size: 0.85rem; color: var(--muted); }
+  :global(.parcel__meta b) { color: var(--ink); font-family: var(--font-mono); }
+  :global(.parcel__text) { font-size: 0.93rem; color: var(--ink-2); }
+  :global(mark) { background: var(--yellow-soft); color: inherit; padding: 0 2px; border-radius: 2px; }
+</style>

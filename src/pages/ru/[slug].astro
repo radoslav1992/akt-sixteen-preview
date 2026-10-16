@@ -1,0 +1,31 @@
+---
+import BlogPost from "../../layouts/BlogPost.astro";
+import { getCollection, render } from "astro:content";
+
+export async function getStaticPaths() {
+  const guides = await getCollection("intl", (g) => g.data.lang === "ru");
+  return guides.map((guide) => ({ params: { slug: guide.data.slug }, props: { guide } }));
+}
+
+const { guide } = Astro.props;
+const { Content } = await render(guide);
+const alternates = [
+  { hreflang: "bg", href: "/blog/kakvo-e-akt-16/" },
+  { hreflang: "en", href: "/en/act-16-bulgaria/" },
+  { hreflang: "ru", href: "/ru/akt-16-bolgariya/" },
+  { hreflang: "x-default", href: "/blog/kakvo-e-akt-16/" },
+];
+---
+
+<BlogPost
+  title={guide.data.title}
+  description={guide.data.description}
+  date={guide.data.date}
+  updatedDate={guide.data.updatedDate}
+  tags={guide.data.tags}
+  faq={guide.data.faq}
+  lang="ru"
+  alternates={alternates}
+>
+  <Content />
+</BlogPost>

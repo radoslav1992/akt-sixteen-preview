@@ -1,0 +1,18 @@
+---
+// Horizontal bars with labels; single series per list, so no legend is needed.
+import { fmtNumber } from "../lib/format";
+interface Props { rows: Array<{ label: string; value: number; href?: string; title?: string }>; tone?: "act16" | "permits" | "ink" | "yellow"; max?: number }
+const { rows, tone = "ink", max = Math.max(1, ...rows.map((r) => r.value)) } = Astro.props;
+---
+<ul class="bar-list">
+  {rows.map((row) => {
+    const inner = (
+      <>
+        <span class="bar-list__label" title={row.title ?? row.label}>{row.label}</span>
+        <span class="bar-list__track" aria-hidden="true"><span class:list={["bar-list__fill", `bar-list__fill--${tone}`]} style={`width:${Math.max(1.5, (row.value / max) * 100)}%`}></span></span>
+        <span class="bar-list__value">{fmtNumber(row.value)}</span>
+      </>
+    );
+    return <li>{row.href ? <a class="bar-list__row" href={row.href}>{inner}</a> : <div class="bar-list__row">{inner}</div>}</li>;
+  })}
+</ul>

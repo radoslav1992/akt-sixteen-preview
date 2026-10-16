@@ -1,0 +1,85 @@
+---
+// Static SVG map of Sofia municipality: settlement lands as the base, one bubble per district
+// (area ∝ number of documents). Rendered at build time, so it costs no JavaScript.
+import shapes from "../data/geo-shapes.json";
+import { DISTRICTS } from "../lib/places";
+import { fmtNumber } from "../lib/format";
+
+interface Props {
+  counts: Map<string, number>;
+  tone?: "act16" | "permits" | "yellow";
+  highlight?: string;
+  caption: string;
+  label?: string;
+  /** Crop to the built-up area instead of the whole municipality. */
+  crop?: boolean;
+  class?: string;
+}
+const { counts, tone = "yellow", highlight, caption, label = "документа", crop = true, class: className } = Astro.props;
+
+const s = shapes.sofia;
+const [minLng, minLat, maxLng, maxLat] = s.bbox;
+const k = Math.cos(((minLat + maxLat) / 2) * Math.PI / 180);
+const scale = s.width / ((maxLng - minLng) * k);
+const project = (lng: number, lat: number) => [(lng - minLng) * k * scale, (maxLat - lat) * scale];
+
+const [x0, y0] = crop ? project(23.09, 42.835) : [0, 0];
+const [x1, y1] = crop ? project(23.55, 42.555) : [s.width, s.height];
+const viewBox = `${x0.toFixed(0)} ${y0.toFixed(0)} ${(x1 - x0).toFixed(0)} ${(y1 - y0).toFixed(0)}`;
+const unit = (x1 - x0) / 640; // keeps strokes and labels constant regardless of crop
+
+const max = Math.max(1, ...counts.values());
+const bubbles = DISTRICTS.map((d) => {
+  const value = counts.get(d.name) ?? 0;
+  const [x, y] = project(d.lng, d.lat);
+  return { ...d, value, x, y, r: (4 + Math.sqrt(value / max) * 30) * unit };
+}).sort((a, b) => b.r - a.r);
+const fill = tone === "yellow" ? "var(--yellow)" : `var(--mark-${tone})`;
+---
+<figure class:list={["sofia-map chart-wrap", className]} data-chart>
+  <svg viewBox={viewBox} role="img" aria-label={caption} class="sofia-map__svg">
+    <g class="sofia-map__land">
+      {s.settlements.map((p) => <path d={p.d} class:list={{ "is-city": p.ekatte === "68134" }}><title>{p.name}</title></path>)}
+    </g>
+    <g>
+      {bubbles.map((b) => (
+        <a href={`/region/${b.slug}/`} aria-label={`${b.name}: ${fmtNumber(b.value)} ${label}`}>
+          <circle
+            cx={b.x}
+            cy={b.y}
+            r={b.r}
+            fill={fill}
+            fill-opacity={highlight && highlight !== b.name ? 0.35 : 0.78}
+            stroke={highlight === b.name ? "var(--ink)" : "var(--surface)"}
+            stroke-width={(highlight === b.name ? 3 : 1.5) * unit}
+            data-tip={`<b>${b.name}</b><br>${fmtNumber(b.value)} ${label}`}
+          />
+        </a>
+      ))}
+    </g>
+    <g class="sofia-map__labels" aria-hidden="true">
+      {bubbles.filter((b) => b.r > 13 * unit || b.name === highlight).map((b) => (
+        <text x={b.x} y={b.y + 4 * unit} text-anchor="middle" font-size={11 * unit} stroke-width={3 * unit}>{b.name}</text>
+      ))}
+    </g>
+  </svg>
+  <figcaption class="sr-only">{caption}</figcaption>
+</figure>
+
+<script>
+  import { initChartTips } from "../scripts/charttips";
+  initChartTips();
+</script>
+
+<style>
+  .sofia-map { margin: 0; }
+  .sofia-map__svg { width: 100%; height: auto; display: block; }
+  .sofia-map__land path { fill: var(--surface-2); stroke: var(--line-strong); stroke-width: 0.6; }
+  .sofia-map__land path.is-city { fill: var(--bg-deep); }
+  .sofia-map__land path:hover { fill: var(--yellow-soft); }
+  .sofia-map a:focus-visible circle { stroke: var(--ink); stroke-width: 4; }
+  .sofia-map__labels text {
+    font-family: var(--font-display); font-weight: 800; fill: var(--ink);
+    paint-order: stroke; stroke: var(--surface); stroke-linejoin: round; pointer-events: none;
+  }
+</style>

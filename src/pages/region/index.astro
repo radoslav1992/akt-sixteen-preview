@@ -1,0 +1,73 @@
+---
+import Base from "../../layouts/Base.astro";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import SofiaMap from "../../components/SofiaMap.astro";
+import { breadcrumbs } from "../../lib/seo";
+import { getAllRegionsWithSlugs, getRegionRecords } from "../../lib/data";
+import { getListedNeighborhoods, neighborhoodLabel } from "../../lib/places";
+import { inLastDays } from "../../lib/stats";
+import { fmtNumber } from "../../lib/format";
+
+const regions = getAllRegionsWithSlugs().map((r) => {
+  const { act16, permits } = getRegionRecords(r.name);
+  return { ...r, recent: inLastDays(act16, 365).length + inLastDays(permits, 365).length };
+});
+const neighborhoods = getListedNeighborhoods();
+const counts = new Map(regions.map((r) => [r.name, r.act16 + r.permits]));
+const max = Math.max(...regions.map((r) => r.act16 + r.permits));
+---
+
+<Base
+  title="Райони на София — Акт 16 и разрешения за строеж по райони"
+  description="Всички 24 района на Столична община: брой удостоверения Акт 16 и разрешения за строеж, активност за последната година, квартали и села с ново строителство."
+  structuredData={[breadcrumbs([{ name: "Начало", path: "/" }, { name: "Райони", path: "/region/" }])]}
+>
+  <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "Райони" }]} />
+  <header class="page-head">
+    <span class="eyebrow">Столична община</span>
+    <h1>Строителство по райони в София</h1>
+    <p class="page-head__lead">24 района, {fmtNumber(neighborhoods.length)} квартала и села. Изберете район, за да видите всички удостоверения за въвеждане в експлоатация (Акт 16) и разрешения за строеж в него.</p>
+  </header>
+
+  <section class="section regions-layout">
+    <div class="card"><SofiaMap counts={counts} caption="Брой документи по район в София" /></div>
+    <div class="table-card card">
+      <table>
+        <thead><tr><th>Район</th><th>Акт 16</th><th>Разрешения</th><th>12 мес.</th></tr></thead>
+        <tbody>
+          {regions.map((r) => (
+            <tr>
+              <td><a href={`/region/${r.slug}/`}><strong>{r.name}</strong></a><span class="mini-bar" style={`width:${((r.act16 + r.permits) / max) * 100}%`}></span></td>
+              <td class="mono"><a href={`/region/${r.slug}/act16/`}>{fmtNumber(r.act16)}</a></td>
+              <td class="mono"><a href={`/region/${r.slug}/permits/`}>{fmtNumber(r.permits)}</a></td>
+              <td class="mono">{fmtNumber(r.recent)}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">Квартали и села</span>
+        <h2>Най-активни квартали</h2>
+      </div>
+      <a class="section-head__link" href="/neighborhood/">Всички квартали</a>
+    </div>
+    <div class="chip-row">
+      {neighborhoods.slice(0, 60).map((n) => <a class="chip" href={`/neighborhood/${n.slug}/`}>{neighborhoodLabel(n)} <span class="chip__count">{n.total}</span></a>)}
+    </div>
+  </section>
+</Base>
+
+<style>
+  .regions-layout { display: grid; gap: 1rem; }
+  @media (min-width: 1000px) { .regions-layout { grid-template-columns: 1.1fr 1fr; align-items: start; } }
+  .table-card { padding: 0; overflow-x: auto; }
+  .table-card td:first-child { position: relative; }
+  .table-card td a { color: var(--ink); }
+  .table-card td a:hover { color: var(--blue); }
+  .mini-bar { display: block; height: 4px; background: var(--yellow-strong); border-radius: 2px; margin-top: 0.35rem; }
+</style>
