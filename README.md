@@ -25,17 +25,28 @@ data/
     ekatte-sofia.json  ← ЕКАТТЕ → център на населеното място (Столична община)
     cache.json         ← Кеш на заявките към Nominatim
     points.json        ← Координати по запис (за картата)
+migrations/0001_init.sql ← D1 схема: профили, сесии, следени обекти
 src/
-  content/blog/        ← Markdown статии за SEO
+  content/blog/        ← Статии (Markdown) с FAQ във frontmatter
+  content/intl/        ← Ръководства на английски и руски (/en/, /ru/)
+  lib/                 ← data, companies, places (райони/квартали), parcels (история на имот),
+                         classify (тип сграда), stats, feeds (RSS/CSV), auth (D1)
+  components/          ← Дизайн система: Icon, RecordCard, DocRow, графики (YearBars, MonthlyTrend),
+                         SofiaMap (SVG карта), BulgariaMap, FollowButton, FaqList
+  scripts/             ← Клиентски скриптове: register, check, map (Leaflet), account, watchlist
   pages/
-    index.astro        ← Начална страница с обобщение за двата регистъра
-    register/[id].astro ← Таблица с филтри и пагинация (act16 / permits)
-    blog/index.astro   ← Списък с всички статии
-    blog/[slug].astro  ← Отделна статия
-    stats.astro        ← Статистика по район и месец с табове
-  lib/data.ts          ← Помощни функции за работа с данни
-  layouts/Base.astro   ← Общ layout с OG мета тагове и PWA мета тагове
-  layouts/BlogPost.astro ← Layout за статия със structured data
+    index.astro                ← Начало: търсене, пулс на регистрите, карта, нови сгради
+    check.astro                ← Проверка на имот: двата регистъра, групирани по имот
+    register/[id].astro        ← Търсене в регистъра (on demand; ?region= → 301)
+    register/[id]/[slug].astro ← Документ (on demand) с история на имота
+    region/…                   ← 24 района + пълни списъци /region/<район>/<регистър>/
+    neighborhood/…             ← Квартали и села
+    company/…                  ← Фирми: инвеститори и строителен надзор (само юридически лица)
+    map.astro                  ← Интерактивна карта (Leaflet + CARTO/OSM)
+    new-buildings.astro        ← Нови жилищни сгради с Акт 16
+    stats.astro, data.astro    ← Статистика и отворени данни (CSV/JSON)
+    account.astro              ← Вход, регистрация и следени обекти
+    api/auth/*, api/watchlist/* ← API за профили (D1)
 public/
   manifest.json        ← Web App Manifest (PWA)
   sw.js                ← Service Worker за офлайн достъп
@@ -74,6 +85,12 @@ node scripts/geocode.mjs --no-network
 
 # Тестове
 npm test
+
+# След билд: проверка на статичните страници (h1, canonical, вътрешни линкове, sitemap)
+node scripts/check-seo.mjs
+
+# Проверка на страниците, рендерирани от worker-а (стартирайте wrangler dev преди това)
+node scripts/check-worker.mjs http://localhost:8787
 
 # Билд
 npm run build
@@ -131,7 +148,20 @@ npm run build
 
 - **Scrape** (`scrape.yml`): Всеки ден в 08:00 UTC — скрейпване и геокодиране. Може да се стартира и ръчно (`days_back`, `geocode_limit`, `geocode_minutes`).
 
-## Деплой на Cloudflare Pages
+## Профили и следени обекти (D1)
+
+Профилите, сесиите и списъците „Следени“ са в Cloudflare D1 база `akt16` (binding `DB` в `wrangler.jsonc`). Схемата е в `migrations/`.
+
+```bash
+# Локално
+npx wrangler d1 migrations apply akt16 --local
+# Production (само при нова миграция)
+npx wrangler d1 migrations apply akt16 --remote
+```
+
+Без профил „Следени“ работи в localStorage на браузъра; след вход списъкът се слива с профила. Паролите се хешират с PBKDF2 (100 000 итерации). На безплатния план на Workers лимитът е 10 ms CPU на заявка — ако вход/регистрация връщат грешка 1102, намалете `PBKDF2_ITERATIONS` в `src/lib/auth.ts` (старите хешове продължават да работят).
+
+## Деплой на Cloudflare
 
 Сайтът е достъпен на [akt16.org](https://akt16.org).
 
