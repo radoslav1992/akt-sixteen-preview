@@ -118,6 +118,9 @@ body {
   overflow-x: hidden;
 }
 
+/* Component display rules (grid, flex, .btn) must not override the hidden attribute. */
+[hidden] { display: none !important; }
+
 img, svg { display: block; max-width: 100%; }
 .icon { max-width: none; flex-shrink: 0; }
 button, input, select, textarea { font: inherit; color: inherit; }
