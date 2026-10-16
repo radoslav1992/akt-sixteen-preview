@@ -15,9 +15,16 @@ Mobile-first PWA (Progressive Web App) за проследяване на раз
 
 ```
 scripts/scrape.mjs     ← Node.js скрейпър за NAG Sofia API (поддържа множество регистри)
+scripts/geocode.mjs    ← Инкрементално геокодиране (Nominatim + кеш)
+scripts/geo-lib.mjs    ← Чисти функции: парсване на адрес/местност, заявки, точки
+scripts/build-ekatte.mjs ← Генерира data/geo/ekatte-sofia.json
 data/
   certificates.json    ← Акт 16 — удостоверения за експлоатация
   permits.json         ← Разрешения за строеж
+  geo/
+    ekatte-sofia.json  ← ЕКАТТЕ → център на населеното място (Столична община)
+    cache.json         ← Кеш на заявките към Nominatim
+    points.json        ← Координати по запис (за картата)
 src/
   content/blog/        ← Markdown статии за SEO
   pages/
@@ -59,6 +66,12 @@ node scripts/scrape.mjs 90 permits
 # Пълно събиране (последната 1 година)
 npm run scrape:full
 
+# Геокодиране (до 400 заявки към Nominatim, макс. 8 мин)
+npm run geocode
+
+# Само преизграждане на data/geo/points.json от кеша (без мрежа)
+node scripts/geocode.mjs --no-network
+
 # Тестове
 npm test
 
@@ -93,9 +106,30 @@ npm run build
 | `region` | Район в София |
 | `scope` | Адрес / местност / кадастрален идентификатор |
 
+## Геокодиране
+
+`scripts/geocode.mjs` намира координати на записите постепенно, всеки ден след скрейпването:
+
+1. От полето `scope` се извличат адрес (`ул. Кутловица`), местност (`Манастирски ливади - запад`) и кадастрален идентификатор (`68134.702.9832` → ЕКАТТЕ `68134`).
+2. За всеки запис се правят заявки към [Nominatim](https://nominatim.openstreetmap.org/) в ред адрес → местност, винаги в рамките на София (или на селото/града за записи извън града), напр. `ул. Иван Денкоглу 40, София, България`. Записите се обработват от най-новите към най-старите.
+3. Всяка заявка (успешна или не) се пази в `data/geo/cache.json`. Неуспешните се опитват отново след 60 дни. Резултати извън Столична община се отхвърлят.
+4. `data/geo/points.json` се генерира наново при всяко пускане: `"<регистър>:<номер>-<дата>": [lat, lng, точност]`.
+
+| Точност | Значение |
+|---------|----------|
+| `1` | Адрес (улица и номер) |
+| `2` | Местност / квартал |
+| `3` | Център на селото/града по ЕКАТТЕ (само извън град София — центърът на София не носи информация) |
+
+**Политика за използване на Nominatim.** Спазваме [правилата на OSMF](https://operations.osmfoundation.org/policies/nominatim/): последователни заявки, не повече от 1 в секунда (пауза ≥ 1,1 с), идентифициращ `User-Agent` (`akt16.org-geocoder/1.0`), кеширане на всички отговори, лимит на заявките за всяко пускане и спиране при грешки (с експоненциално изчакване при 429/5xx). Данните са © OpenStreetMap contributors (ODbL) — навсякъде, където се показват точките (карта, експорт), трябва да има атрибуция „© OpenStreetMap contributors“ с връзка към https://www.openstreetmap.org/copyright.
+
+**Първоначално попълване (backfill).** Ежедневното пускане прави до 400 заявки за 8 минути. За да се попълнят наведнъж старите записи, стартирайте ръчно **Actions → Scrape NAG Certificates → Run workflow** с напр. `geocode_limit` = `2500` и `geocode_minutes` = `45` (задачата има лимит от 60 минути). Повторете, докато в лога `still to try` стигне 0.
+
+Центровете на населените места (`data/geo/ekatte-sofia.json`) идват от [yurukov/Bulgaria-geocoding](https://github.com/yurukov/Bulgaria-geocoding) и се обновяват с `node scripts/build-ekatte.mjs`.
+
 ## GitHub Actions
 
-- **Scrape** (`scrape.yml`): Всеки ден в 08:00 UTC. Може да се стартира и ръчно.
+- **Scrape** (`scrape.yml`): Всеки ден в 08:00 UTC — скрейпване и геокодиране. Може да се стартира и ръчно (`days_back`, `geocode_limit`, `geocode_minutes`).
 
 ## Деплой на Cloudflare Pages
 

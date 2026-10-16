@@ -12,6 +12,7 @@
     "astro": "astro",
     "scrape": "node scripts/scrape.mjs",
     "scrape:full": "node scripts/scrape.mjs 365",
+    "geocode": "node scripts/geocode.mjs",
     "test": "vitest run",
     "test:watch": "vitest",
     "generate-types": "wrangler types",
