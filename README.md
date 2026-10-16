@@ -46,7 +46,7 @@ scripts/build-extension.mjs ← Пакетира extension/ в public/downloads/
     region/…                   ← 24 района + пълни списъци /region/<район>/<регистър>/
     neighborhood/…             ← Квартали и села
     company/…                  ← Фирми: инвеститори и строителен надзор (само юридически лица)
-    map.astro                  ← Интерактивна карта (Leaflet + CARTO/OSM)
+    map.astro                  ← Интерактивна карта (Leaflet + OpenFreeMap/MapLibre, резервно OSM растер)
     new-buildings.astro        ← Нови жилищни сгради с Акт 16
     stats.astro, data.astro    ← Статистика и отворени данни (CSV/JSON)
     account/                   ← Вход, регистрация, следени обекти; verify, forgot, reset
