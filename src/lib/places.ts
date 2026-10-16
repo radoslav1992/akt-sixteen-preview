@@ -181,18 +181,24 @@ function resolveNeighborhood(record: Record): Neighborhood | null {
   const village = code && code !== SOFIA_CITY && !TOWNS.has(code) ? SETTLEMENTS[code] : undefined;
   if (village) return { slug: slugify(`s ${village.name}`), name: village.name, kind: "с.", ekatte: code };
 
-  const locality = extractLocality(record.scope)?.toLocaleUpperCase("bg-BG");
-  if (locality) {
-    for (const [re, name, kind] of RULES) {
-      const m = locality.match(re);
-      if (m) {
-        const resolved = name.replace("$1", m[1] ?? "");
-        return { slug: slugify(resolved), name: resolved, kind };
-      }
-    }
-  }
+  const locality = extractLocality(record.scope);
+  const named = locality ? neighborhoodFromText(locality) : null;
+  if (named) return named;
   const town = code && TOWNS.has(code) ? SETTLEMENTS[code] : undefined;
   if (town) return { slug: slugify(`gr ${town.name}`), name: town.name, kind: "гр.", ekatte: code };
+  return null;
+}
+
+/** Runs the neighbourhood rules on free text such as a "Местност" value or „кв. Манастирски ливади“. Villages are not covered. */
+export function neighborhoodFromText(text: string): Neighborhood | null {
+  const upper = text.toLocaleUpperCase("bg-BG");
+  for (const [re, name, kind] of RULES) {
+    const m = upper.match(re);
+    if (m) {
+      const resolved = name.replace("$1", m[1] ?? "");
+      return { slug: slugify(resolved), name: resolved, kind };
+    }
+  }
   return null;
 }
 

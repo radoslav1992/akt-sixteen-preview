@@ -1,0 +1,53 @@
+{
+  "manifest_version": 3,
+  "name": "Акт 16 — проверка в обявите за имоти",
+  "short_name": "Акт 16",
+  "description": "Показва разрешенията за строеж и Акт 16 за квартала, улицата и имота от обява в София — по данни от akt16.org.",
+  "version": "1.0.0",
+  "homepage_url": "https://akt16.org/extension/",
+  "permissions": ["contextMenus", "storage"],
+  "host_permissions": ["https://akt16.org/*"],
+  "background": {
+    "service_worker": "background.js",
+    "scripts": ["background.js"]
+  },
+  "action": {
+    "default_title": "Акт 16 — проверка на имот",
+    "default_popup": "popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.imot.bg/*",
+        "*://*.homes.bg/*",
+        "*://*.imoti.net/*",
+        "*://*.alo.bg/*",
+        "*://*.olx.bg/*",
+        "*://*.address.bg/*",
+        "*://*.bazar.bg/*",
+        "*://*.yavlena.com/*",
+        "*://*.luximmo.bg/*"
+      ],
+      "js": ["extract.js", "content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "browser_specific_settings": {
+    "gecko": {
+      "id": "extension@akt16.org",
+      "strict_min_version": "121.0"
+    }
+  }
+}

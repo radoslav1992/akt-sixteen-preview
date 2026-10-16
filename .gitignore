@@ -28,3 +28,6 @@ pnpm-debug.log*
 .dev.vars*
 !.dev.vars.example
 !.env.example
+
+# browser extension package (built by scripts/build-extension.mjs)
+public/downloads/akt16-extension.zip

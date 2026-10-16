@@ -1,0 +1,263 @@
+---
+import Base from "../layouts/Base.astro";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import FaqList from "../components/FaqList.astro";
+import Icon from "../components/Icon.astro";
+import { breadcrumbs } from "../lib/seo";
+import { getRegister } from "../lib/data";
+import { lookup } from "../lib/lookup";
+import { fmtNumber } from "../lib/format";
+import manifest from "../../extension/manifest.json";
+
+const ZIP = "/downloads/akt16-extension.zip";
+const version = manifest.version;
+const sites = ["imot.bg", "homes.bg", "imoti.net", "alo.bg", "olx.bg", "address.bg", "bazar.bg", "yavlena.com", "luximmo.bg"];
+
+// The example panel uses real data, as of the last register update.
+const asOf = new Date(getRegister("act16").lastUpdated || Date.now());
+const sample = lookup({ hood: "Манастирски ливади", street: "ул. Ралевица" }, { now: asOf });
+const hood = sample.neighborhood;
+const parcel = sample.parcels[0];
+
+const faq = [
+  { q: "Безплатно ли е разширението?", a: "Да. Разширението и проверките в akt16.org са безплатни и не изискват профил." },
+  { q: "Какви данни изпраща към akt16.org?", a: "Само разпознатите квартал, улица и кадастрален идентификатор от обявата. Не се изпращат адресът на страницата, цената, снимките, текстът на обявата или данни за вас. Няма проследяване и бисквитки." },
+  { q: "Значи ли зелената отметка „Акт 16“, че апартаментът има Акт 16?", a: "Не непременно. Панелът показва документи по квартал, улица или идентификатор, които може да са за съседна сграда или друг етап. Поискайте от продавача номера и датата на документа и проверете имота по идентификатор в akt16.org и в официалния регистър." },
+  { q: "Защо за някои обяви няма панел?", a: "Панелът се показва само на страници с единична обява в София, в които разширението е разпознало квартал, улица, идентификатор или споменаване на Акт 16. На началните страници и в резултатите от търсене не се показва." },
+  { q: "Работи ли в Edge, Brave и Opera?", a: "Да — всички браузъри на основата на Chromium зареждат същия пакет през страницата за разширения в режим за програмисти. Във Firefox е нужна версия 121 или по-нова." },
+  { q: "Кога ще е в Chrome Web Store и Firefox Add-ons?", a: "Пакетът е подготвен за публикуване. Дотогава го инсталирайте ръчно по стъпките на тази страница; след публикуването обновяванията ще идват автоматично." },
+];
+const faqLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+};
+const app = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: manifest.name,
+  description: manifest.description,
+  applicationCategory: "BrowserApplication",
+  operatingSystem: "Chrome, Edge, Firefox",
+  softwareVersion: version,
+  downloadUrl: `https://akt16.org${ZIP}`,
+  url: "https://akt16.org/extension/",
+  inLanguage: "bg",
+  isAccessibleForFree: true,
+  offers: { "@type": "Offer", price: "0", priceCurrency: "EUR" },
+  publisher: { "@id": "https://akt16.org/#organization" },
+};
+---
+
+<Base
+  title="Разширение за браузър — проверка за Акт 16 в обявите за имоти"
+  description="Безплатно разширение за Chrome и Firefox: в обявите на imot.bg, homes.bg, olx.bg и други показва разрешенията за строеж и Акт 16 за квартала, улицата и имота в София."
+  structuredData={[app, faqLd, breadcrumbs([{ name: "Начало", path: "/" }, { name: "Разширение за браузър", path: "/extension/" }])]}
+>
+  <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "Разширение за браузър" }]} />
+
+  <section class="ext-hero panel-dark blueprint">
+    <div class="ext-hero__copy">
+      <span class="eyebrow">Безплатно · Chrome, Edge и Firefox</span>
+      <h1>Проверка за Акт 16 направо в обявите за имоти</h1>
+      <p class="ext-hero__lead">
+        Отворете обява за жилище в София и разширението ще покаже какво има в регистрите на Столична община за
+        квартала, улицата и имота: разрешения за строеж, удостоверения Акт 16 и новите сгради наоколо.
+      </p>
+      <div class="ext-hero__actions">
+        <a class="btn btn--primary" href={ZIP} download><Icon name="download" /> Изтегли разширението</a>
+        <a class="btn btn--ghost" href="#install">Как се инсталира</a>
+      </div>
+      <p class="ext-hero__meta">Версия {version} · ZIP, {sites.length} сайта с обяви · без проследяване</p>
+    </div>
+
+    <figure class="ext-mock">
+      <div class="ext-mock__panel">
+        <div class="ext-mock__stripe" aria-hidden="true"></div>
+        <div class="ext-mock__head">
+          <span class="ext-mock__mark" aria-hidden="true">16</span>
+          <span><b>Акт 16 Тракер</b><small>Разрешения и Акт 16 по данни на НАГ</small></span>
+        </div>
+        <div class="ext-mock__body">
+          <p class="ext-mock__claims"><span class="ext-mock__muted">Обявата споменава:</span> <span class="ext-mock__chip">Акт 16</span></p>
+          {hood && (
+            <div>
+              <p class="ext-mock__label">Квартал</p>
+              <p class="ext-mock__hood">{hood.name}</p>
+              <p class="ext-mock__stats">
+                <span><i class="dot dot--act16"></i> <b>{fmtNumber(hood.act16)}</b> с Акт 16</span>
+                <span><i class="dot dot--permits"></i> <b>{fmtNumber(hood.permits)}</b> разрешения</span>
+              </p>
+              {hood.newBuildings.slice(0, 2).map((b) => (
+                <p class="ext-mock__doc"><span>{b.title}</span><small>Акт 16 № {b.number} · {b.date}</small></p>
+              ))}
+            </div>
+          )}
+          {parcel && (
+            <div>
+              <p class="ext-mock__label">Съвпадения по улица „{sample.query.street}“</p>
+              <div class="ext-mock__parcel">
+                <span class="ext-mock__id">Имот {parcel.id}</span>
+                <span class="ext-mock__badges">
+                  {parcel.permit && <span class="ext-mock__badge ext-mock__badge--permits">✓ Разрешение {parcel.permit.date.slice(-4)}</span>}
+                  {parcel.act16 ? <span class="ext-mock__badge ext-mock__badge--act16">✓ Акт 16 {parcel.act16.date.slice(-4)}</span> : <span class="ext-mock__badge">Няма Акт 16 в регистъра</span>}
+                </span>
+              </div>
+            </div>
+          )}
+          <span class="ext-mock__cta">Провери в akt16.org →</span>
+          <p class="ext-mock__note">Съвпадение по квартал/улица — сверете адреса и идентификатора.</p>
+        </div>
+      </div>
+      <figcaption>Панелът върху обява в {hood?.name ?? "София"} — с реални данни от регистрите.</figcaption>
+    </figure>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>Как работи</h2></div>
+    <ol class="steps">
+      <li class="card">
+        <span class="steps__num">1</span>
+        <h3>Отваряте обява</h3>
+        <p>Разглеждате имот в {sites.slice(0, 3).join(", ")} или друг поддържан сайт — както обикновено.</p>
+      </li>
+      <li class="card">
+        <span class="steps__num">2</span>
+        <h3>Разширението чете мястото</h3>
+        <p>Разпознава квартала, улицата и кадастралния идентификатор, както и дали обявата твърди „Акт 16“ или „в строеж“.</p>
+      </li>
+      <li class="card">
+        <span class="steps__num">3</span>
+        <h3>Виждате документите</h3>
+        <p>В ъгъла се появява панел с разрешенията и Акт 16 за квартала и улицата и бутон към пълната <a href="/check/">проверка на имот</a>.</p>
+      </li>
+    </ol>
+  </section>
+
+  <section class="section grid-2">
+    <div>
+      <h2 class="ext-h2">Поддържани сайтове</h2>
+      <ul class="chip-row ext-sites">
+        {sites.map((s) => <li class="chip">{s}</li>)}
+      </ul>
+      <p class="muted ext-small">Работи само на страници с единична обява в София — не на началните страници и не в резултатите от търсене. Освен това маркиран текст на всяка страница може да се провери с десен бутон → „Провери в Акт 16“.</p>
+    </div>
+    <div class="prose">
+      <h2>Поверителност</h2>
+      <ul>
+        <li>Към akt16.org се изпращат <b>само</b> разпознатите квартал, улица и идентификатор КККР — не адресът на страницата, цената, снимките или текстът на обявата.</li>
+        <li>Без проследяване, аналитика, бисквитки и профил.</li>
+        <li>В браузъра се пази само дали панелът е свит и дали е включен.</li>
+      </ul>
+      <p>Повече в <a href="/privacy/">политиката за поверителност</a>.</p>
+    </div>
+  </section>
+
+  <section class="section" id="install">
+    <div class="section-head">
+      <h2>Инсталиране</h2>
+      <p>Изтеглете <a href={ZIP} download>akt16-extension.zip</a> (версия {version}) и следвайте стъпките за вашия браузър.</p>
+    </div>
+    <div class="grid-2">
+      <div class="card install">
+        <h3>Chrome, Edge, Brave</h3>
+        <ol>
+          <li>Разархивирайте ZIP файла в отделна папка.</li>
+          <li>Отворете <code>chrome://extensions</code> (в Edge — <code>edge://extensions</code>).</li>
+          <li>Включете <b>„Режим за програмисти“</b> (Developer mode) горе вдясно.</li>
+          <li>Натиснете <b>„Зареждане на разпакетирано“</b> (Load unpacked) и изберете папката.</li>
+          <li>Закачете иконата „16“ от менюто с разширения.</li>
+        </ol>
+      </div>
+      <div class="card install">
+        <h3>Firefox</h3>
+        <ol>
+          <li>Отворете <code>about:debugging</code> → <b>„Този Firefox“</b>.</li>
+          <li>Натиснете <b>„Зареждане на временна добавка…“</b> (Load Temporary Add-on) и изберете ZIP файла.</li>
+          <li>Ако Firefox поиска, разрешете достъпа до сайтовете с обяви и akt16.org.</li>
+          <li>Временната добавка изчезва при рестарт на браузъра — до публикуването в Firefox Add-ons.</li>
+        </ol>
+      </div>
+    </div>
+    <p class="notice ext-notice"><Icon name="info" /> <span>Скоро в Chrome Web Store и Firefox Add-ons — тогава инсталирането ще е с един клик, а обновяванията — автоматични.</span></p>
+  </section>
+
+  <section class="section grid-2 ext-dev">
+    <div class="prose">
+      <h2>За разработчици</h2>
+      <p>Разширението ползва публично API, което може да използвате и в свои инструменти. Отговорът е JSON с CORS за всички домейни и се кешира за 1 час.</p>
+      <pre class="ext-code"><code>GET https://akt16.org/api/lookup/?street=Ралевица&amp;hood=Манастирски+ливади</code></pre>
+      <p>Параметри: <code>q</code> (свободен текст), <code>cad</code> (идентификатор КККР или начало, напр. <code>68134.4082</code>), <code>street</code> и <code>hood</code> (квартал или район). Връща имотите с най-добро съвпадение, обобщение за квартала и линк към проверката. Пълните регистри са в <a href="/data/">отворените данни</a>.</p>
+    </div>
+    <div>
+      <h2 class="ext-h2">Въпроси</h2>
+      <FaqList items={faq} />
+    </div>
+  </section>
+</Base>
+
+<style>
+  .ext-hero { padding: clamp(1.4rem, 1rem + 3vw, 3rem); display: grid; gap: 2rem; align-items: center; }
+  @media (min-width: 960px) { .ext-hero { grid-template-columns: 1.15fr 0.85fr; } }
+  .ext-hero__copy { display: grid; gap: 0.9rem; }
+  .ext-hero .eyebrow { color: var(--yellow); }
+  .ext-hero h1 { font-size: clamp(2rem, 1.4rem + 2.4vw, 3.2rem); text-transform: uppercase; }
+  .ext-hero__lead { max-width: 640px; font-size: 1.08rem; }
+  .ext-hero__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; margin-top: 0.4rem; }
+  .ext-hero__meta { font-size: 0.85rem; }
+
+  .ext-mock { margin: 0; display: grid; gap: 0.6rem; justify-items: center; }
+  .ext-mock figcaption { font-size: 0.82rem; color: var(--asphalt-muted); text-align: center; }
+  .ext-mock__panel {
+    width: min(100%, 340px); background: #121418; color: #f2f0ea; border-radius: 14px; overflow: hidden;
+    box-shadow: 0 18px 40px -12px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(255, 255, 255, 0.09); font-size: 0.82rem; line-height: 1.45;
+    transform: rotate(-1.2deg);
+  }
+  .ext-mock__stripe { height: 6px; background: var(--hazard); }
+  .ext-mock__head { display: flex; align-items: center; gap: 0.6rem; padding: 0.6rem 0.75rem; border-bottom: 1px solid var(--asphalt-line); }
+  .ext-mock__head b { display: block; color: #fff; text-transform: uppercase; letter-spacing: 0.03em; }
+  .ext-mock__head small { display: block; color: var(--asphalt-muted); font-size: 0.7rem; }
+  .ext-mock__mark { width: 28px; height: 28px; display: grid; place-items: center; background: var(--yellow); color: var(--yellow-ink); border-radius: 7px; font-weight: 900; }
+  .ext-mock__body { padding: 0.75rem; display: grid; gap: 0.75rem; }
+  .ext-mock__body p { color: inherit; margin: 0; }
+  .ext-mock__muted { color: var(--asphalt-muted); }
+  .ext-mock__chip { background: #0b8770; color: #fff; border-radius: 999px; padding: 0.05rem 0.55rem; font-weight: 700; }
+  .ext-mock__label { color: var(--yellow) !important; font-size: 0.66rem; font-weight: 800; letter-spacing: 0.12em; text-transform: uppercase; }
+  .ext-mock__hood { color: #fff !important; font-weight: 800; font-size: 0.95rem; }
+  .ext-mock__stats { display: flex; gap: 0.9rem; margin: 0.2rem 0 0.45rem !important; }
+  .ext-mock__stats b { color: #fff; }
+  .ext-mock__doc { display: grid; gap: 0.1rem; padding: 0.4rem 0.55rem; border-left: 4px solid #0b8770; background: var(--asphalt-2); border-radius: 8px; margin-top: 0.35rem !important; }
+  .ext-mock__doc span { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
+  .ext-mock__doc small, .ext-mock__note { color: var(--asphalt-muted); font-size: 0.72rem; }
+  .ext-mock__parcel { display: grid; gap: 0.35rem; padding: 0.45rem 0.55rem; background: var(--asphalt-2); border-radius: 8px; margin-top: 0.35rem; }
+  .ext-mock__id { font-family: var(--font-mono); font-weight: 700; color: #fff; font-size: 0.78rem; }
+  .ext-mock__badges { display: flex; flex-wrap: wrap; gap: 0.3rem; }
+  .ext-mock__badge { border-radius: 999px; padding: 0 0.5rem; font-weight: 700; font-size: 0.72rem; border: 1px dashed #6b7380; }
+  .ext-mock__badge--act16 { background: #0b8770; color: #fff; border: 0; }
+  .ext-mock__badge--permits { background: #e8590c; color: #121418; border: 0; }
+  .ext-mock__cta { display: block; text-align: center; padding: 0.55rem; border-radius: 10px; background: var(--yellow); color: var(--yellow-ink); font-weight: 800; text-transform: uppercase; letter-spacing: 0.03em; }
+  .ext-mock__note { border-left: 3px solid var(--yellow); padding-left: 0.5rem; }
+  @media (prefers-reduced-motion: reduce) { .ext-mock__panel { transform: none; } }
+
+  .steps { list-style: none; display: grid; gap: 0.9rem; }
+  @media (min-width: 860px) { .steps { grid-template-columns: repeat(3, 1fr); } }
+  .steps li { display: grid; gap: 0.45rem; align-content: start; }
+  .steps h3 { font-size: 1.2rem; }
+  .steps p { color: var(--ink-2); }
+  .steps__num {
+    width: 38px; height: 38px; display: grid; place-items: center; border-radius: 9px; background: var(--yellow); color: var(--yellow-ink);
+    font-family: var(--font-display); font-weight: 900; font-size: 1.25rem; box-shadow: inset 0 -3px 0 rgba(0, 0, 0, 0.14);
+  }
+  .ext-h2 { font-size: clamp(1.4rem, 1.2rem + 0.8vw, 1.85rem); margin-bottom: 1rem; }
+  .prose > h2:first-child { margin-top: 0; }
+  .ext-sites { list-style: none; }
+  .ext-small { font-size: 0.9rem; margin-top: 1rem; }
+  .install h3 { font-size: 1.25rem; margin-bottom: 0.6rem; }
+  .install ol { padding-left: 1.3rem; display: grid; gap: 0.45rem; color: var(--ink-2); }
+  .install li::marker { color: var(--orange); font-weight: 700; }
+  .install code, .ext-code { font-family: var(--font-mono); font-size: 0.88em; background: var(--bg-deep); padding: 0.1em 0.35em; border-radius: 4px; }
+  .ext-code { display: block; padding: 0.75rem 0.9rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .ext-dev > * { min-width: 0; }
+  .ext-code code { background: none; padding: 0; }
+  .ext-notice { margin-top: 1rem; align-items: center; }
+</style>
