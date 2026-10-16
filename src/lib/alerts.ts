@@ -1,7 +1,7 @@
 // Daily email digests: documents that the scraper newly added (data/changes.json) are matched
 // against each subscriber's watchlist. Runs from the worker's cron trigger (src/worker.ts).
 import changes from "../../data/changes.json";
-import { findRecordBySlug, extractCadastreIds, getRecords, recordSlug, type Record, type RegisterId } from "./data";
+import { findRecordBySlug, extractCadastreIds, getRecords, parcelIdOf, recordSlug, type Record, type RegisterId } from "./data";
 import { companiesInRecord } from "./companies";
 import { neighborhoodOf } from "./places";
 import { isoDate, slugify, truncate } from "./format";
@@ -53,6 +53,8 @@ export function docsIssuedSince(since: string): NewDoc[] {
     .sort((a, b) => isoDate(b.record.date).localeCompare(isoDate(a.record.date)));
 }
 
+const parcelsOf = (record: Record) => new Set(extractCadastreIds(record.scope).map(parcelIdOf));
+
 /** Does a newly added document belong to a watched item? */
 export function matchesItem(item: WatchRow, doc: NewDoc): boolean {
   const { record, registerId } = doc;
@@ -64,14 +66,15 @@ export function matchesItem(item: WatchRow, doc: NewDoc): boolean {
     case "company":
       return companiesInRecord(record, registerId).some((c) => c.slug === item.key);
     case "parcel":
-      return extractCadastreIds(record.scope).includes(item.key);
+      // Documents are filed under the parcel, building or unit id: compare parcels.
+      return parcelsOf(record).has(parcelIdOf(item.key));
     case "record": {
       // A followed document: alert when a later document appears on the same parcel.
       const [reg, slug] = item.key.split(":");
       const followed = findRecordBySlug(reg as RegisterId, slug);
       if (!followed) return false;
-      const ids = new Set(extractCadastreIds(followed.scope));
-      return extractCadastreIds(record.scope).some((id) => ids.has(id));
+      const parcels = parcelsOf(followed);
+      return [...parcelsOf(record)].some((id) => parcels.has(id));
     }
     case "search": {
       const text = `${record.number} ${record.object} ${record.region} ${record.scope} ${record.employer} ${record.constructionOversight} ${neighborhoodOf(record)?.name ?? ""}`;

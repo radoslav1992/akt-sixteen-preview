@@ -1,5 +1,5 @@
 // Parcel (поземлен имот) history: links permits and Акт 16 records that share a cadastral identifier.
-import { extractCadastreIds, getRecords, type Record, type RegisterId } from "./data";
+import { extractCadastreIds, getRecords, parcelIdOf, type Record, type RegisterId } from "./data";
 import { dateKey, monthsBetween } from "./format";
 
 export interface ParcelDoc {
@@ -23,6 +23,25 @@ export function getParcelIndex(): Map<string, ParcelDoc[]> {
   }
   for (const list of index.values()) list.sort((a, b) => dateKey(a.record.date) - dateKey(b.record.date));
   return index;
+}
+
+let groups: Map<string, ParcelDoc[]> | null = null;
+
+/** Like getParcelIndex, but documents filed under a building or unit id are folded into their parcel. */
+export function getParcelGroups(): Map<string, ParcelDoc[]> {
+  if (groups) return groups;
+  const seen = new Map<string, Set<Record>>();
+  groups = new Map();
+  for (const [id, docs] of getParcelIndex()) {
+    const key = parcelIdOf(id);
+    const list = groups.get(key) ?? [];
+    const records = seen.get(key) ?? new Set<Record>();
+    for (const doc of docs) if (!records.has(doc.record)) (records.add(doc.record), list.push(doc));
+    groups.set(key, list);
+    seen.set(key, records);
+  }
+  for (const list of groups.values()) list.sort((a, b) => dateKey(a.record.date) - dateKey(b.record.date));
+  return groups;
 }
 
 /** Every document on the same parcel(s) as `record`, oldest first, including the record itself. */

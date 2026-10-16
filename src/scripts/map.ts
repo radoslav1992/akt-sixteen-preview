@@ -3,6 +3,7 @@ import L from "leaflet";
 import "leaflet/dist/leaflet.css";
 import "leaflet.markercluster";
 import "leaflet.markercluster/dist/MarkerCluster.css";
+import { localizeLabels } from "./map-labels";
 
 interface MapData {
   updatedAt: string;
@@ -14,27 +15,78 @@ interface MapData {
   pts: Array<[number, number, number, number, string, string, string, string]>; // lat, lng, precision, recIdx, key, number, date, text
 }
 
-const TILES = {
-  light: "https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png",
-  dark: "https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png",
+// Basemap: OpenFreeMap vector styles (no API key or usage limits). Positron and Dark are the designs the map
+// used from CARTO before CARTO started requiring an API key. Without WebGL, or if OpenFreeMap is unreachable,
+// OpenStreetMap's standard raster tiles are used instead (darkened with a CSS filter in the dark theme).
+const STYLES = {
+  light: "https://tiles.openfreemap.org/styles/positron",
+  dark: "https://tiles.openfreemap.org/styles/dark",
 };
-const ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>';
+const VECTOR_ATTRIBUTION = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> &copy; <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> &copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
+const RASTER_TILES = "https://tile.openstreetmap.org/{z}/{x}/{y}.png";
+const RASTER_ATTRIBUTION = '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>';
 const REG_LABEL = ["Акт 16", "Разрешение за строеж"];
 
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const fmt = (n: number) => n.toLocaleString("bg-BG").replace(/ /g, " ");
+
+const theme = () => (document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light");
+
+function hasWebGL(): boolean {
+  try {
+    const canvas = document.createElement("canvas");
+    return !!(canvas.getContext("webgl2") || canvas.getContext("webgl"));
+  } catch {
+    return false;
+  }
+}
+
+async function addBasemap(map: L.Map, el: HTMLElement): Promise<void> {
+  let vector: L.Layer | null = null;
+  const useRaster = () => {
+    if (vector) map.removeLayer(vector);
+    vector = null;
+    L.tileLayer(RASTER_TILES, { attribution: RASTER_ATTRIBUTION, maxZoom: 19 }).addTo(map);
+    const sync = () => el.classList.toggle("map--raster-dark", theme() === "dark");
+    sync();
+    document.addEventListener("themechange", sync);
+  };
+  if (!hasWebGL()) return useRaster();
+  try {
+    const [{ maplibreGL }] = await Promise.all([import("@maplibre/maplibre-gl-leaflet"), import("maplibre-gl/dist/maplibre-gl.css")]);
+    // The plugin turns MapLibre's own control off and shows this in Leaflet's attribution box.
+    const layer = maplibreGL({ style: STYLES[theme()], attributionControl: { customAttribution: VECTOR_ATTRIBUTION } });
+    vector = layer.addTo(map);
+    const gl = layer.getMaplibreMap();
+    // Errors before the style has loaded mean the style itself failed (OpenFreeMap down or blocked): switch
+    // to raster tiles. Later errors (a missing tile or font) are left to MapLibre.
+    let styleLoaded = false;
+    gl.on("style.load", () => {
+      styleLoaded = true;
+      localizeLabels(gl);
+    });
+    gl.on("error", (e) => {
+      if (styleLoaded || !vector) return;
+      console.warn("[map] vector style unavailable, using raster tiles", e.error);
+      useRaster();
+    });
+    document.addEventListener("themechange", () => {
+      if (!vector) return;
+      styleLoaded = false;
+      gl.setStyle(STYLES[theme()]);
+    });
+  } catch (err) {
+    console.error("[map] vector basemap failed", err);
+    useRaster();
+  }
+}
 
 export async function initMap(): Promise<void> {
   const el = document.getElementById("map");
   if (!el) return;
 
   const map = L.map(el, { zoomControl: true, attributionControl: true, minZoom: 9, maxZoom: 18 }).setView([42.69, 23.33], 11);
-  const theme = () => (document.documentElement.getAttribute("data-theme") === "dark" ? "dark" : "light");
-  let tiles = L.tileLayer(TILES[theme()], { attribution: ATTRIBUTION, subdomains: "abcd", maxZoom: 19 }).addTo(map);
-  document.addEventListener("themechange", () => {
-    map.removeLayer(tiles);
-    tiles = L.tileLayer(TILES[theme()], { attribution: ATTRIBUTION, subdomains: "abcd", maxZoom: 19 }).addTo(map);
-  });
+  void addBasemap(map, el);
 
   let data: MapData;
   try {

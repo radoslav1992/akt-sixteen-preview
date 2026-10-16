@@ -1,6 +1,6 @@
 // "Проверка на имот": searches both registers and groups matches by cadastral parcel into a timeline.
 import { readableCase } from "../lib/textcase";
-import { normalizeQuery } from "../lib/search";
+import { normalizeQuery, parcelIdOf } from "../lib/search";
 import { addItem, getCachedUser, isWatched, removeItem } from "./watchlist";
 import { showToast } from "./shell";
 
@@ -114,12 +114,14 @@ export function initCheck(): void {
       return terms.every((t) => hay.includes(t));
     });
 
-    // Pull in every document on the matched parcels so the history is complete.
+    // Pull in every document on the matched parcels so the history is complete. Documents filed under a
+    // building or unit id (68134.1932.720.1.21) belong to their parcel (68134.1932.720).
     const byParcel = new Map<string, Doc[]>();
-    for (const d of all) for (const c of d.c.split(" ").filter(Boolean)) byParcel.set(c, [...(byParcel.get(c) ?? []), d]);
+    for (const d of all) for (const c of new Set(d.c.split(" ").filter(Boolean).map(parcelIdOf))) byParcel.set(c, [...(byParcel.get(c) ?? []), d]);
     const map = new Map<string, Group>();
     for (const d of matched) {
-      const id = d.c.split(" ").filter(Boolean)[0] ?? `doc:${d.reg}:${d.k}`;
+      const first = d.c.split(" ").find(Boolean);
+      const id = first ? parcelIdOf(first) : `doc:${d.reg}:${d.k}`;
       if (!map.has(id)) {
         const related = id.startsWith("doc:") ? [d] : byParcel.get(id) ?? [d];
         map.set(id, { id, docs: [...new Set(related)], latest: 0 });

@@ -81,7 +81,7 @@ const years = [2021, 2022, 2023, 2024, 2025, 2026];
         <h2>Как да използвате картата</h2>
         <p>Кръговете показват броя на документите във всеки район на София според избраните филтри. Селата и градовете в Столична община (Бистрица, Лозен, Банкя, Нови Искър и др.) са отбелязани с отделен знак. С приближаване се появяват отделните обекти с точен адрес или квартал.</p>
         <p>Местоположенията са определени автоматично по адреса и местността в регистъра и може да са приблизителни. За конкретен имот използвайте <a href="/check/">проверката по адрес или кадастрален идентификатор</a>.</p>
-        <p class="muted">Карта: © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors, © <a href="https://carto.com/attributions">CARTO</a>. Геокодиране: Nominatim / OpenStreetMap.</p>
+        <p class="muted">Карта: <a href="https://openfreemap.org">OpenFreeMap</a> © <a href="https://www.openmaptiles.org/">OpenMapTiles</a>, данни © <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors. Геокодиране: Nominatim / OpenStreetMap.</p>
       </div>
       <div class="panel-dark blueprint locator">
         <span class="eyebrow">Покритие</span>
@@ -108,6 +108,8 @@ const years = [2021, 2022, 2023, 2024, 2025, 2026];
   .map-app { display: grid; grid-template-rows: auto; }
   .map-canvas { position: relative; height: 68vh; min-height: 420px; order: -1; }
   #map { position: absolute; inset: 0; background: var(--bg-deep); }
+  /* Raster fallback (no WebGL): OpenStreetMap has no dark tiles, so darken the light ones. */
+  #map:global(.map--raster-dark) :global(.leaflet-tile-pane) { filter: invert(1) hue-rotate(180deg) brightness(0.85) contrast(0.9); }
   .map-panel { padding: 1.1rem var(--gutter) 1.5rem; display: grid; gap: 1rem; align-content: start; background: var(--surface); border-bottom: 1px solid var(--line); }
   @media (min-width: 960px) {
     .map-app { grid-template-columns: 360px 1fr; height: calc(100dvh - 67px); }

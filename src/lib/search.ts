@@ -11,3 +11,6 @@ export function matchesQuery(terms: string[], text: string): boolean {
   const hay = normalizeQuery(text);
   return terms.every((t) => hay.includes(t));
 }
+
+/** Parcel part of a cadastral id: a building (…720.1) or unit (…720.1.21) id → its parcel (68134.1932.720). */
+export const parcelIdOf = (id: string): string => id.split(".").slice(0, 3).join(".");

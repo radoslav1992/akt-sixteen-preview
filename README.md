@@ -36,6 +36,8 @@ src/
   components/          ← Дизайн система: Icon, RecordCard, DocRow, графики (YearBars, MonthlyTrend),
                          SofiaMap (SVG карта), BulgariaMap, FollowButton, FaqList
   scripts/             ← Клиентски скриптове: register, check, map (Leaflet), account, watchlist
+extension/             ← Разширение за Chrome/Firefox (MV3): панел с разрешения и Акт 16 в обявите за имоти
+scripts/build-extension.mjs ← Пакетира extension/ в public/downloads/akt16-extension.zip (част от npm run build)
   pages/
     index.astro                ← Начало: търсене, пулс на регистрите, карта, нови сгради
     check.astro                ← Проверка на имот: двата регистъра, групирани по имот
@@ -44,12 +46,14 @@ src/
     region/…                   ← 24 района + пълни списъци /region/<район>/<регистър>/
     neighborhood/…             ← Квартали и села
     company/…                  ← Фирми: инвеститори и строителен надзор (само юридически лица)
-    map.astro                  ← Интерактивна карта (Leaflet + CARTO/OSM)
+    map.astro                  ← Интерактивна карта (Leaflet + OpenFreeMap/MapLibre, резервно OSM растер)
     new-buildings.astro        ← Нови жилищни сгради с Акт 16
     stats.astro, data.astro    ← Статистика и отворени данни (CSV/JSON)
     account/                   ← Вход, регистрация, следени обекти; verify, forgot, reset
     api/auth/*, api/watchlist/* ← API за профили (D1)
     api/alerts/*               ← Тестово известие и отписване с един клик
+    api/lookup.ts              ← Публично API за разширението (CORS, кеш 1 ч)
+    extension.astro            ← Страница на разширението за браузър
   worker.ts            ← Worker entry: Astro за заявките + cron за дневните известия
 public/
   manifest.json        ← Web App Manifest (PWA)
@@ -194,6 +198,16 @@ npx wrangler d1 migrations apply akt16 --remote
 За ръчно пускане на cron локално: `curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=20+10+*+*+*"`
 (при Astro заявката минава през assets router-а, затова за този тест пуснете `wrangler dev -c` с копие на
 `dist/server/wrangler.json` без `assets`).
+
+## Разширение за браузър
+
+`extension/` е разширение (Manifest V3, Chrome и Firefox 121+), което на страници с обяви (imot.bg, homes.bg,
+imoti.net, alo.bg, olx.bg, address.bg, bazar.bg, yavlena.com, luximmo.bg) разпознава квартала, улицата или
+кадастралния идентификатор и показва разрешенията за строеж и Акт 16 от `GET /api/lookup/` (параметри `q`, `cad`,
+`street`, `hood`). Разширението говори само с akt16.org, без бисквитки и без да пази история.
+
+`npm run build` пакетира ZIP-а в `public/downloads/akt16-extension.zip` (за ръчно инсталиране от `/extension/`).
+За Chrome Web Store и Firefox Add-ons качете същия ZIP; подробности в `extension/README.md`.
 
 ## Деплой на Cloudflare
 

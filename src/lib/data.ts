@@ -169,6 +169,8 @@ export function extractCadastreId(scope: string): string | null {
 
 const CADASTRE_IDS_RE = /\b\d{5}\.\d{1,5}\.\d{1,5}(?:\.\d{1,4})?(?:\.\d{1,4})?\b/g;
 
+export { parcelIdOf } from "./search";
+
 /** All cadastral identifiers in the scope (some records cover several parcels). */
 export function extractCadastreIds(scope: string): string[] {
   const start = scope.search(/Идентификатор\s+КККР/i);
