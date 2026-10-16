@@ -1,5 +1,6 @@
 import rawCertificates from "../../data/certificates.json";
 import rawPermits from "../../data/permits.json";
+import { slugify } from "./format";
 
 export interface Record {
   number: string;
@@ -136,29 +137,27 @@ export function getCombinedStats(): {
 
 // --- URL slug helpers ---
 
-const CYRILLIC_TO_LATIN: { [k: string]: string } = {
-  а: "a", б: "b", в: "v", г: "g", д: "d", е: "e", ж: "zh", з: "z",
-  и: "i", й: "y", к: "k", л: "l", м: "m", н: "n", о: "o", п: "p",
-  р: "r", с: "s", т: "t", у: "u", ф: "f", х: "h", ц: "ts", ч: "ch",
-  ш: "sh", щ: "sht", ъ: "a", ь: "y", ю: "yu", я: "ya",
-};
-
 export function slugifyRegion(name: string): string {
-  return name
-    .toLowerCase()
-    .split("")
-    .map((c) => CYRILLIC_TO_LATIN[c] ?? (/[a-z0-9-]/.test(c) ? c : "-"))
-    .join("")
-    .replace(/-+/g, "-")
-    .replace(/^-|-$/g, "");
+  return slugify(name);
 }
 
 export function recordSlug(r: Record): string {
   return `${r.number}-${r.date.replace(/\./g, "")}`;
 }
 
+export function recordUrl(registerId: RegisterId, r: Record): string {
+  return `/register/${registerId}/${recordSlug(r)}/`;
+}
+
+const slugIndex = new Map<RegisterId, Map<string, Record>>();
+
 export function findRecordBySlug(registerId: RegisterId, slug: string): Record | null {
-  return getRecords(registerId).find((r) => recordSlug(r) === slug) ?? null;
+  let index = slugIndex.get(registerId);
+  if (!index) {
+    index = new Map(getRecords(registerId).map((r) => [recordSlug(r), r]));
+    slugIndex.set(registerId, index);
+  }
+  return index.get(slug) ?? null;
 }
 
 const CADASTRE_RE = /Идентификатор\s+КККР[^:]*:\s*([0-9]+\.[0-9]+\.[0-9]+(?:\.[0-9]+)?)/i;
@@ -166,6 +165,16 @@ const CADASTRE_RE = /Идентификатор\s+КККР[^:]*:\s*([0-9]+\.[0-9
 export function extractCadastreId(scope: string): string | null {
   const m = scope.match(CADASTRE_RE);
   return m ? m[1] : null;
+}
+
+const CADASTRE_IDS_RE = /\b\d{5}\.\d{1,5}\.\d{1,5}(?:\.\d{1,4})?(?:\.\d{1,4})?\b/g;
+
+/** All cadastral identifiers in the scope (some records cover several parcels). */
+export function extractCadastreIds(scope: string): string[] {
+  const start = scope.search(/Идентификатор\s+КККР/i);
+  if (start < 0) return [];
+  const tail = scope.slice(start).split(/,\s*(?:Планоснимачен|Адрес|Местност|Квартал по регулация|УПИ)[^:]*:/u)[0];
+  return [...new Set(tail.match(CADASTRE_IDS_RE) ?? [])];
 }
 
 const ADDRESS_RE = /Адрес:\s*([^,]+(?:,\s*[^:,][^,]*)*?)(?=,\s*[А-Я][а-я]+:|$)/u;
