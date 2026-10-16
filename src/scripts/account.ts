@@ -1,20 +1,41 @@
 // Account page: sign-in / registration, profile settings and the watchlist with "new since last visit" counts.
+import { matchesQuery, queryTerms } from "../lib/search";
 import { auth, getCachedUser, getItems, markSeen, onChange, refreshSession, removeItem, setCachedUser, syncAfterLogin, type WatchItem } from "./watchlist";
 
-interface ClientRecord { n: string; d: string; r: string; m: string; c: string; h: string }
+interface ClientRecord { n: string; d: string; r: string; m: string; c: string; h: string; k: string; o?: string; s?: string }
 
 const KIND_LABELS: { [k: string]: string } = {
-  parcel: "Имоти", record: "Документи", company: "Фирми", region: "Райони", neighborhood: "Квартали и села", search: "Търсения",
+  parcel: "Имоти", record: "Документи", company: "Фирми", region: "Райони", neighborhood: "Квартали и села", search: "Запазени търсения",
 };
 const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const dateNum = (s: string) => { const [d, m, y] = s.split("."); return +y * 10000 + +m * 100 + +d; };
 const isoNum = (iso: string) => +iso.slice(0, 10).replace(/-/g, "");
 
-let records: ClientRecord[] | null = null;
-async function loadRecords(): Promise<ClientRecord[]> {
+interface TaggedRecord extends ClientRecord { reg: "act16" | "permits"; k: string; o?: string; s?: string }
+let records: TaggedRecord[] | null = null;
+let firstSeen: Map<string, string> | null = null;
+
+async function loadRecords(): Promise<TaggedRecord[]> {
   if (records) return records;
-  const lists = await Promise.all(["act16", "permits"].map((id) => fetch(`/api/${id}.json`).then((r) => r.json())));
-  return (records = lists.flat());
+  const [act16, permits, changes] = await Promise.all([
+    fetch("/api/act16.json").then((r) => r.json()),
+    fetch("/api/permits.json").then((r) => r.json()),
+    fetch("/api/changes.json").then((r) => r.json()).catch(() => ({ entries: [] })),
+  ]);
+  firstSeen = new Map();
+  for (const entry of changes.entries ?? []) {
+    for (const reg of ["act16", "permits"]) for (const slug of entry[reg] ?? []) if (!firstSeen.has(`${reg}:${slug}`)) firstSeen.set(`${reg}:${slug}`, entry.at);
+  }
+  return (records = [
+    ...act16.map((r: ClientRecord) => ({ ...r, reg: "act16" as const })),
+    ...permits.map((r: ClientRecord) => ({ ...r, reg: "permits" as const })),
+  ]);
+}
+
+/** New since `since` (ISO): it first appeared in the registers after that time, or (before the change log existed) was issued after it. */
+function isNewSince(r: TaggedRecord, since: string): boolean {
+  const seen = firstSeen?.get(`${r.reg}:${r.k}`);
+  return seen ? seen > since : dateNum(r.d) > isoNum(since);
 }
 
 function matcher(item: WatchItem): ((r: ClientRecord) => boolean) | null {
@@ -22,6 +43,10 @@ function matcher(item: WatchItem): ((r: ClientRecord) => boolean) | null {
     case "parcel": return (r) => r.c.split(" ").includes(item.key);
     case "region": { const name = item.label.replace(/^Район\s+/, ""); return (r) => r.r === name; }
     case "neighborhood": { const name = item.label.replace(/^(с\.|гр\.)\s+/, ""); return (r) => r.h === name; }
+    case "search": {
+      const terms = queryTerms(item.key);
+      return (r) => matchesQuery(terms, `${r.n} ${r.o ?? ""} ${r.r} ${r.m} ${r.s ?? ""} ${r.c} ${r.h}`);
+    }
     case "company": { const name = item.label.replace(/^ЕТ\s+/, "").replace(/[„“"]/g, "").replace(/\s+(ЕООД|ООД|ЕАД|АД|ДЗЗД|КДА|КД|СД|АДСИЦ)$/, "").trim().toLocaleUpperCase("bg-BG"); return (r) => r.m.toLocaleUpperCase("bg-BG").includes(name); }
     default: return null;
   }
@@ -33,9 +58,9 @@ async function newCounts(items: WatchItem[]): Promise<Map<WatchItem, number>> {
   if (!relevant.length) return out;
   const all = await loadRecords();
   for (const item of relevant) {
-    const since = isoNum(item.last_seen_at || item.created_at || new Date().toISOString());
+    const since = item.last_seen_at || item.created_at || new Date().toISOString();
     const match = matcher(item)!;
-    out.set(item, all.filter((r) => dateNum(r.d) > since && match(r)).length);
+    out.set(item, all.filter((r) => isNewSince(r, since) && match(r)).length);
   }
   return out;
 }
@@ -56,6 +81,7 @@ export function initAccount(): void {
     mode = next;
     document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((b) => b.setAttribute("aria-selected", String(b.dataset.tab === mode)));
     document.querySelectorAll<HTMLElement>("[data-only='register']").forEach((el) => (el.hidden = mode !== "register"));
+    document.querySelectorAll<HTMLElement>("[data-only='login']").forEach((el) => (el.hidden = mode !== "login"));
     submit.textContent = mode === "register" ? "Създай профил" : "Вход";
     $<HTMLInputElement>("auth-password").autocomplete = mode === "register" ? "new-password" : "current-password";
     errorEl.hidden = true;
@@ -110,6 +136,8 @@ export function initAccount(): void {
       $("profile-email").textContent = user.email;
       $<HTMLInputElement>("settings-name").value = user.name ?? "";
       $<HTMLInputElement>("settings-alerts").checked = !!user.email_alerts;
+      $("verify-banner").hidden = user.email_verified !== false;
+      $<HTMLButtonElement>("test-alert").disabled = user.email_verified === false;
     }
   }
 
@@ -126,7 +154,9 @@ export function initAccount(): void {
     }
     submit.disabled = true;
     try {
-      const { user } = mode === "register" ? await auth.register(email, password, name || undefined) : await auth.login(email, password);
+      const { user } = mode === "register"
+        ? await auth.register(email, password, name || undefined, $<HTMLInputElement>("auth-alerts").checked)
+        : await auth.login(email, password);
       setCachedUser(user);
       await syncAfterLogin();
       renderUser();
@@ -145,7 +175,8 @@ export function initAccount(): void {
       const { user } = await auth.settings({ name: $<HTMLInputElement>("settings-name").value.trim(), email_alerts: $<HTMLInputElement>("settings-alerts").checked });
       setCachedUser(user);
       renderUser();
-    } catch (err) { alert((err as Error).message); }
+      $("settings-status").textContent = "Запазено.";
+    } catch (err) { $("settings-status").textContent = (err as Error).message; }
   });
 
   $("logout").addEventListener("click", async () => {
@@ -164,6 +195,21 @@ export function initAccount(): void {
       renderUser();
       renderList();
     } catch (err) { alert((err as Error).message); }
+  });
+
+  $("verify-resend").addEventListener("click", async () => {
+    try {
+      const res = await auth.resendVerification();
+      $("verify-status").textContent = res.already ? "Имейлът вече е потвърден." : "Изпратихме ново писмо. Проверете и папката за нежелана поща.";
+      if (res.already) refreshSession().then(renderUser);
+    } catch (err) { $("verify-status").textContent = (err as Error).message; }
+  });
+
+  $("test-alert").addEventListener("click", async () => {
+    try {
+      const res = await auth.testAlert();
+      $("test-status").textContent = `Изпратихме тестово писмо с ${res.documents} документа.`;
+    } catch (err) { $("test-status").textContent = (err as Error).message; }
   });
 
   markAll.addEventListener("click", async () => {

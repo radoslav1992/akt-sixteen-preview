@@ -1,0 +1,62 @@
+---
+import Base from "../../layouts/Base.astro";
+---
+<Base title="Нова парола | Акт 16" description="Задайте нова парола за профила си в Акт 16 Тракер." noindex>
+  <section class="auth-page card">
+    <span class="eyebrow">Профил</span>
+    <h1>Нова парола</h1>
+    <form id="reset-form" class="auth-form" novalidate>
+      <div class="field">
+        <label class="field__label" for="reset-password">Нова парола</label>
+        <input id="reset-password" type="password" autocomplete="new-password" minlength="8" required />
+      </div>
+      <div class="field">
+        <label class="field__label" for="reset-confirm">Повторете паролата</label>
+        <input id="reset-confirm" type="password" autocomplete="new-password" minlength="8" required />
+      </div>
+      <p id="reset-status" class="auth-status" role="status"></p>
+      <button class="btn btn--primary" type="submit">Запази паролата</button>
+    </form>
+    <p class="muted">Всички други устройства ще бъдат отписани от профила.</p>
+  </section>
+</Base>
+
+<script>
+  import { auth, setCachedUser, syncAfterLogin } from "../../scripts/watchlist";
+  const form = document.getElementById("reset-form") as HTMLFormElement;
+  const status = document.getElementById("reset-status")!;
+  const token = new URLSearchParams(location.search).get("token");
+  if (!token) status.textContent = "Липсва код. Отворете връзката от писмото отново или поискайте нова.";
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const password = (document.getElementById("reset-password") as HTMLInputElement).value;
+    const confirm = (document.getElementById("reset-confirm") as HTMLInputElement).value;
+    if (password.length < 8) { status.textContent = "Паролата трябва да е поне 8 знака."; return; }
+    if (password !== confirm) { status.textContent = "Паролите не съвпадат."; return; }
+    if (!token) return;
+    const button = form.querySelector("button")!;
+    button.disabled = true;
+    try {
+      const { user } = await auth.reset(token, password);
+      setCachedUser(user);
+      await syncAfterLogin().catch(() => {});
+      status.textContent = "Паролата е сменена. Пренасочваме ви към профила…";
+      setTimeout(() => location.assign("/account/"), 900);
+    } catch (err) {
+      status.innerHTML = "";
+      status.append((err as Error).message, " ");
+      const a = Object.assign(document.createElement("a"), { href: "/account/forgot/", textContent: "Поискайте нова връзка." });
+      status.append(a);
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  .auth-page { max-width: 560px; margin: 2rem auto; display: grid; gap: 0.9rem; }
+  .auth-page h1 { font-size: clamp(1.8rem, 1.4rem + 1.6vw, 2.4rem); }
+  .auth-form { display: grid; gap: 0.85rem; }
+  .auth-status:empty { display: none; }
+  .auth-status { font-weight: 600; }
+</style>

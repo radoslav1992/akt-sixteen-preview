@@ -1,0 +1,27 @@
+---
+import Base from "../../layouts/Base.astro";
+---
+<Base title="Потвърждаване на имейл | Акт 16" description="Потвърждаване на имейл адреса за профил в Акт 16 Тракер." noindex>
+  <section class="auth-page card">
+    <span class="eyebrow">Профил</span>
+    <h1>Потвърждаване на имейла</h1>
+    <p id="verify-status" role="status">Потвърждаваме адреса…</p>
+    <p><a class="btn btn--primary" href="/account/">Към профила</a></p>
+  </section>
+</Base>
+
+<script>
+  import { auth, refreshSession } from "../../scripts/watchlist";
+  const status = document.getElementById("verify-status")!;
+  const token = new URLSearchParams(location.search).get("token");
+  if (!token) status.textContent = "Липсва код за потвърждение. Отворете връзката от писмото отново.";
+  else
+    auth.verify(token)
+      .then(() => { status.textContent = "Готово! Имейлът е потвърден и ще получавате известия за следените обекти."; return refreshSession(); })
+      .catch((e: Error) => { status.textContent = e.message; });
+</script>
+
+<style>
+  .auth-page { max-width: 560px; margin: 2rem auto; display: grid; gap: 0.9rem; }
+  .auth-page h1 { font-size: clamp(1.8rem, 1.4rem + 1.6vw, 2.4rem); }
+</style>

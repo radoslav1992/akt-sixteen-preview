@@ -39,7 +39,13 @@ const faq = [
     <p class="check-hint">Съвет: най-точно е търсенето по кадастрален идентификатор. Адресите в регистрите често са записани различно.</p>
   </section>
 
-  <div class="check-status" id="check-status" role="status" aria-live="polite"></div>
+  <div class="check-bar">
+    <div class="check-status" id="check-status" role="status" aria-live="polite"></div>
+    <button type="button" class="btn btn--ghost btn--sm follow-btn" id="check-follow" aria-pressed="false" hidden>
+      <Icon name="star" size={16} />
+      <span data-follow-text>Следи това търсене</span>
+    </button>
+  </div>
   <div class="check-results" id="check-results"></div>
   <button type="button" class="btn btn--ghost check-more" id="check-more" hidden>Покажи още</button>
 
@@ -72,7 +78,9 @@ const faq = [
   .check-hero p { max-width: 720px; }
   .check-form { max-width: 760px; margin-top: 0.5rem; }
   .check-hint { font-size: 0.88rem; }
-  .check-status { margin: 1.5rem 0 0.75rem; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em; }
+  .check-bar { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0.5rem 1rem; margin: 1.5rem 0 0.75rem; }
+  .check-bar:has(.check-status:empty):has(#check-follow[hidden]) { display: none; }
+  .check-status { margin: 0; font-family: var(--font-display); font-weight: 800; font-size: 1.2rem; text-transform: uppercase; letter-spacing: 0.04em; }
   .check-status:empty { display: none; }
   .check-results { display: grid; gap: 0.9rem; }
   .check-more { margin: 1rem auto 0; display: flex; }

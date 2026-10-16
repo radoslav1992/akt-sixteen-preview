@@ -204,12 +204,56 @@ export async function scrapeRegister(register, daysBack = 90) {
   return allRecords;
 }
 
+export const CHANGES_FILE = "changes.json";
+export const CHANGES_KEEP_DAYS = 60;
+
+export function recordSlug(record) {
+  return `${record.number}-${record.date.replace(/\./g, "")}`;
+}
+
+/** Records in `incoming` that are not yet in `existing` (same number + date). */
+export function findAdded(existing, incoming) {
+  const seen = new Set(existing.map((c) => `${c.number}/${c.date}`));
+  const added = [];
+  for (const record of incoming) {
+    const key = `${record.number}/${record.date}`;
+    if (!seen.has(key)) {
+      seen.add(key);
+      added.push(record);
+    }
+  }
+  return added;
+}
+
+/**
+ * Appends one scrape run to the change log used by the daily email alerts and
+ * drops entries older than `keepDays`. `added` maps register id → new record slugs.
+ */
+export function appendChanges(log, added, now = new Date(), keepDays = CHANGES_KEEP_DAYS) {
+  const cutoff = new Date(now.getTime() - keepDays * 86400000).toISOString();
+  const entries = (log?.entries ?? []).filter((e) => e.at >= cutoff);
+  const total = Object.values(added).reduce((n, keys) => n + keys.length, 0);
+  if (total > 0) entries.push({ at: now.toISOString(), ...added });
+  return { version: 1, keepDays, entries };
+}
+
+function loadChanges() {
+  const filePath = resolve(DATA_DIR, CHANGES_FILE);
+  if (!existsSync(filePath)) return null;
+  try {
+    return JSON.parse(readFileSync(filePath, "utf-8"));
+  } catch {
+    return null;
+  }
+}
+
 export async function scrapeAndSave(registerIds = ["act16", "permits"], daysBack = 90) {
   if (!existsSync(DATA_DIR)) {
     mkdirSync(DATA_DIR, { recursive: true });
   }
 
   const results = {};
+  const added = {};
 
   for (const id of registerIds) {
     const register = REGISTERS[id];
@@ -221,6 +265,8 @@ export async function scrapeAndSave(registerIds = ["act16", "permits"], daysBack
     const incoming = await scrapeRegister(register, daysBack);
     const existing = loadExisting(register.outputFile);
     const merged = mergeAndDeduplicate(existing, incoming);
+    // An empty register means a first run: everything would look new, so nothing is logged.
+    if (existing.length > 0) added[id] = findAdded(existing, incoming).map(recordSlug);
 
     const output = {
       lastUpdated: new Date().toISOString(),
@@ -238,6 +284,10 @@ export async function scrapeAndSave(registerIds = ["act16", "permits"], daysBack
 
     results[id] = output;
   }
+
+  const changes = appendChanges(loadChanges(), added);
+  writeFileSync(resolve(DATA_DIR, CHANGES_FILE), JSON.stringify(changes, null, 1) + "\n", "utf-8");
+  console.log(`Change log: ${Object.entries(added).map(([id, keys]) => `${id} +${keys.length}`).join(", ") || "no new records"}`);
 
   return results;
 }

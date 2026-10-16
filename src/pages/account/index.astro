@@ -1,6 +1,6 @@
 ---
-import Base from "../layouts/Base.astro";
-import Icon from "../components/Icon.astro";
+import Base from "../../layouts/Base.astro";
+import Icon from "../../components/Icon.astro";
 ---
 
 <Base title="Профил и следени обекти | Акт 16" description="Вход, регистрация и списък със следени имоти, фирми, райони и квартали в Акт 16 Тракер." noindex>
@@ -44,8 +44,10 @@ import Icon from "../components/Icon.astro";
               <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" required />
               <small class="muted" data-only="register" hidden>Поне 8 символа.</small>
             </div>
+            <label class="toggle" data-only="register" hidden><input type="checkbox" id="auth-alerts" checked /> Изпращай ми имейл, когато има нови документи по следените обекти</label>
             <p class="auth__error" id="auth-error" role="alert" hidden></p>
             <button type="submit" class="btn btn--primary" id="auth-submit">Вход</button>
+            <p class="auth__forgot" data-only="login"><a href="/account/forgot/">Забравена парола?</a></p>
             <p class="muted auth__legal" data-only="register" hidden>С регистрацията приемате <a href="/privacy/">политиката за поверителност</a>. Пазим само имейла, името и списъка ви.</p>
           </form>
         </section>
@@ -53,14 +55,26 @@ import Icon from "../components/Icon.astro";
         <section class="card profile" id="profile" hidden>
           <h2>Профил</h2>
           <p class="profile__email" id="profile-email"></p>
+          <div class="notice verify-banner" id="verify-banner" hidden>
+            <div>
+              <p><strong>Потвърдете имейла си.</strong> Изпратихме ви писмо с връзка. Известията започват след потвърждение.</p>
+              <button type="button" class="btn btn--ghost btn--sm" id="verify-resend">Изпрати писмото отново</button>
+              <p class="verify-banner__status" id="verify-status" role="status"></p>
+            </div>
+          </div>
           <form id="settings-form" class="auth__form">
             <div class="field">
               <label class="field__label" for="settings-name">Име</label>
               <input id="settings-name" type="text" maxlength="80" />
             </div>
-            <label class="toggle"><input type="checkbox" id="settings-alerts" /> Искам имейл известия за нови документи (скоро)</label>
+            <label class="toggle"><input type="checkbox" id="settings-alerts" /> Имейл известия за нови документи по следените обекти (веднъж дневно, само при промяна)</label>
             <button type="submit" class="btn btn--ghost btn--sm">Запази</button>
+            <p class="verify-banner__status" id="settings-status" role="status"></p>
           </form>
+          <div class="profile__test">
+            <button type="button" class="btn btn--ghost btn--sm" id="test-alert">Изпрати тестово известие</button>
+            <p class="verify-banner__status" id="test-status" role="status"></p>
+          </div>
           <div class="profile__actions">
             <button type="button" class="btn btn--dark btn--sm" id="logout"><Icon name="logout" size={16} /> Изход</button>
           </div>
@@ -80,7 +94,7 @@ import Icon from "../components/Icon.astro";
 </Base>
 
 <script>
-  import { initAccount } from "../scripts/account";
+  import { initAccount } from "../../scripts/account";
   initAccount();
 </script>
 
@@ -99,6 +113,10 @@ import Icon from "../components/Icon.astro";
   .auth__form { display: grid; gap: 0.85rem; }
   .auth__error { color: var(--red); font-weight: 600; font-size: 0.92rem; }
   .auth__legal { font-size: 0.82rem; }
+  .auth__forgot { font-size: 0.9rem; }
+  .verify-banner p + .btn { margin-top: 0.6rem; }
+  .verify-banner__status { font-size: 0.88rem; font-weight: 600; margin-top: 0.4rem; }
+  .verify-banner__status:empty { display: none; }
   .profile { display: grid; gap: 1rem; }
   .profile__email { font-family: var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
   .profile__danger summary { cursor: pointer; color: var(--red); font-weight: 700; font-size: 0.9rem; }

@@ -18,6 +18,9 @@ const MAX_BODY_LENGTH = 256 * 1024;
 const RATE_LIMITS = {
   login: { max: 10, seconds: 15 * 60 }, // failed logins per IP (or per email)
   register: { max: 5, seconds: 60 * 60 }, // registration attempts per IP
+  reset: { max: 5, seconds: 60 * 60 }, // password-reset emails per IP (or per email)
+  verify: { max: 3, seconds: 60 * 60 }, // verification emails re-sent per IP (or per email)
+  alert_test: { max: 3, seconds: 60 * 60 }, // test digests per IP (or per email)
 };
 
 export type WatchKind = (typeof WATCH_KINDS)[number];
@@ -35,6 +38,7 @@ export interface SessionUser {
   email: string;
   name: string | null;
   email_alerts: boolean;
+  email_verified: boolean;
 }
 
 const MESSAGES = {
@@ -48,6 +52,9 @@ const MESSAGES = {
   unsupported_media_type: "Заявката трябва да е във формат JSON.",
   payload_too_large: "Заявката е твърде голяма.",
   accounts_unavailable: "Профилите временно не са достъпни.",
+  invalid_token: "Връзката е невалидна или е изтекла. Поискайте нова.",
+  email_unverified: "Първо потвърдете имейл адреса си.",
+  email_unavailable: "Изпращането на имейли временно не работи. Опитайте по-късно.",
   server_error: "Възникна грешка. Опитайте отново.",
 };
 
@@ -254,7 +261,7 @@ export function ipKey(ip: string): string {
 
 /* Sessions */
 
-export const USER_COLUMNS = "id, email, name, email_alerts";
+export const USER_COLUMNS = "id, email, name, email_alerts, email_verified_at";
 
 export function toUser(row: Record<string, unknown>): SessionUser {
   return {
@@ -262,6 +269,7 @@ export function toUser(row: Record<string, unknown>): SessionUser {
     email: String(row.email),
     name: (row.name as string | null) ?? null,
     email_alerts: Boolean(row.email_alerts),
+    email_verified: Boolean(row.email_verified_at),
   };
 }
 
@@ -271,7 +279,7 @@ export async function getSession(db: D1Database, request: Request) {
   const id = await hashToken(token);
   const row = await db
     .prepare(
-      "SELECT s.expires_at, u.id, u.email, u.name, u.email_alerts " +
+      "SELECT s.expires_at, u.id, u.email, u.name, u.email_alerts, u.email_verified_at " +
         "FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.id = ?",
     )
     .bind(id)
@@ -301,6 +309,35 @@ export async function createSession(db: D1Database, userId: number, request: Req
     db.prepare("DELETE FROM sessions WHERE expires_at < ?").bind(now),
   ]);
   return sessionCookie(token);
+}
+
+/* Single-use email tokens (verification and password reset) */
+
+export type EmailTokenPurpose = "verify" | "reset";
+export const EMAIL_TOKEN_TTL: Record<EmailTokenPurpose, number> = { verify: 3 * 24 * 60 * 60, reset: 60 * 60 };
+
+// Issues a new token and retires earlier unused ones of the same purpose. Returns the raw token for the link.
+export async function createEmailToken(db: D1Database, userId: number, purpose: EmailTokenPurpose): Promise<string> {
+  const token = newSessionToken();
+  const now = nowIso();
+  await db.batch([
+    db.prepare("UPDATE email_tokens SET used_at = ? WHERE user_id = ? AND purpose = ? AND used_at IS NULL").bind(now, userId, purpose),
+    db
+      .prepare("INSERT INTO email_tokens (id, user_id, purpose, created_at, expires_at) VALUES (?, ?, ?, ?, ?)")
+      .bind(await hashToken(token), userId, purpose, now, nowIso(EMAIL_TOKEN_TTL[purpose])),
+    db.prepare("DELETE FROM email_tokens WHERE expires_at < ?").bind(nowIso(-7 * 24 * 60 * 60)),
+  ]);
+  return token;
+}
+
+// Marks the token used and returns its user id, or null when it is unknown, used or expired.
+export async function consumeEmailToken(db: D1Database, token: unknown, purpose: EmailTokenPurpose): Promise<number | null> {
+  if (typeof token !== "string" || token.length < 20 || token.length > 128) return null;
+  const row = await db
+    .prepare("UPDATE email_tokens SET used_at = ? WHERE id = ? AND purpose = ? AND used_at IS NULL AND expires_at > ? RETURNING user_id")
+    .bind(nowIso(), await hashToken(token), purpose, nowIso())
+    .first<{ user_id: number }>();
+  return row ? Number(row.user_id) : null;
 }
 
 /* Rate limiting */

@@ -68,7 +68,7 @@ function initFollowButtons(): void {
   sync();
 }
 
-function showToast(message: string, href?: string, action?: string): void {
+export function showToast(message: string, href?: string, action?: string): void {
   document.querySelector(".toast")?.remove();
   const el = document.createElement("div");
   el.className = "toast";

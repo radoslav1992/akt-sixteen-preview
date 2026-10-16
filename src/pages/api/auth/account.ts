@@ -34,6 +34,8 @@ export const DELETE: APIRoute = (ctx) =>
     await db.batch([
       db.prepare("DELETE FROM watchlist WHERE user_id = ?").bind(user.id),
       db.prepare("DELETE FROM sessions WHERE user_id = ?").bind(user.id),
+      db.prepare("DELETE FROM email_tokens WHERE user_id = ?").bind(user.id),
+      db.prepare("DELETE FROM alert_log WHERE user_id = ?").bind(user.id),
       db.prepare("DELETE FROM auth_attempts WHERE email = ?").bind(user.email),
       db.prepare("DELETE FROM users WHERE id = ?").bind(user.id),
     ]);

@@ -1,6 +1,6 @@
 import type { APIRoute } from "astro";
 import { env } from "cloudflare:workers";
-import { InputError, USER_COLUMNS, handle, json, parseName, toUser } from "../../../lib/auth";
+import { InputError, USER_COLUMNS, handle, json, nowIso, parseName, toUser } from "../../../lib/auth";
 
 export const prerender = false;
 
@@ -15,9 +15,11 @@ export const POST: APIRoute = (ctx) =>
       }
       alerts = Boolean(body.email_alerts);
     }
+    // Switching alerts on starts from now, so the first digest is not a backlog of old changes.
+    const turnedOn = alerts && !user.email_alerts;
     const row = await db
-      .prepare(`UPDATE users SET name = ?, email_alerts = ? WHERE id = ? RETURNING ${USER_COLUMNS}`)
-      .bind(name, alerts ? 1 : 0, user.id)
+      .prepare(`UPDATE users SET name = ?, email_alerts = ?, last_alert_at = CASE WHEN ? THEN ? ELSE last_alert_at END WHERE id = ? RETURNING ${USER_COLUMNS}`)
+      .bind(name, alerts ? 1 : 0, turnedOn ? 1 : 0, nowIso(), user.id)
       .first<Record<string, unknown>>();
     return json({ user: row ? toUser(row) : null });
   });

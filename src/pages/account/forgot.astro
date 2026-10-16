@@ -1,0 +1,48 @@
+---
+import Base from "../../layouts/Base.astro";
+---
+<Base title="Забравена парола | Акт 16" description="Поискайте връзка за нова парола за профила си в Акт 16 Тракер." noindex>
+  <section class="auth-page card">
+    <span class="eyebrow">Профил</span>
+    <h1>Забравена парола</h1>
+    <p>Въведете имейла на профила си. Ще ви изпратим връзка за нова парола, валидна 1 час.</p>
+    <form id="forgot-form" class="auth-form" novalidate>
+      <div class="field">
+        <label class="field__label" for="forgot-email">Имейл</label>
+        <input id="forgot-email" type="email" autocomplete="email" required />
+      </div>
+      <p id="forgot-status" class="auth-status" role="status"></p>
+      <button class="btn btn--primary" type="submit">Изпрати връзка</button>
+    </form>
+    <p><a href="/account/">← Обратно към входа</a></p>
+  </section>
+</Base>
+
+<script>
+  import { auth } from "../../scripts/watchlist";
+  const form = document.getElementById("forgot-form") as HTMLFormElement;
+  const status = document.getElementById("forgot-status")!;
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const email = (document.getElementById("forgot-email") as HTMLInputElement).value.trim();
+    if (!email) { status.textContent = "Въведете имейл."; return; }
+    const button = form.querySelector("button")!;
+    button.disabled = true;
+    try {
+      const { message } = await auth.forgot(email);
+      status.textContent = message;
+    } catch (err) {
+      status.textContent = (err as Error).message;
+    } finally {
+      button.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  .auth-page { max-width: 560px; margin: 2rem auto; display: grid; gap: 0.9rem; }
+  .auth-page h1 { font-size: clamp(1.8rem, 1.4rem + 1.6vw, 2.4rem); }
+  .auth-form { display: grid; gap: 0.85rem; }
+  .auth-status:empty { display: none; }
+  .auth-status { font-weight: 600; }
+</style>

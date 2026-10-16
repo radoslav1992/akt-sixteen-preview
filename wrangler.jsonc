@@ -2,13 +2,26 @@
 	"compatibility_date": "2026-04-17",
 	"compatibility_flags": ["global_fetch_strictly_public"],
 	"name": "real-estate-certificates",
-	"main": "@astrojs/cloudflare/entrypoints/server",
+	"main": "./src/worker.ts",
 	"assets": {
 		"directory": "./dist",
 		"binding": "ASSETS"
 	},
 	"observability": {
 		"enabled": true
+	},
+	// Cloudflare Email Service: onboard akt16.org under Email Service → Email Sending first.
+	"send_email": [
+		{
+			"name": "EMAIL"
+		}
+	],
+	"vars": {
+		"EMAIL_FROM": "noreply@akt16.org"
+	},
+	// Daily alert digests, after the 08:00 UTC scrape has been deployed.
+	"triggers": {
+		"crons": ["20 10 * * *"]
 	},
 	"d1_databases": [
 		{
