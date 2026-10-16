@@ -170,3 +170,22 @@ describe("searchQueryId extraction", () => {
     expect(match[1]).toBe("abc-123-def");
   });
 });
+
+describe("change log for email alerts", () => {
+  it("finds records that are new by number and date", async () => {
+    const { findAdded } = await import("../scripts/scrape.mjs");
+    const existing = [{ number: "1", date: "01.10.2026" }, { number: "2", date: "02.10.2026" }];
+    const incoming = [{ number: "2", date: "02.10.2026" }, { number: "3", date: "03.10.2026" }, { number: "1", date: "05.10.2026" }];
+    expect(findAdded(existing, incoming).map((r) => `${r.number}/${r.date}`)).toEqual(["3/03.10.2026", "1/05.10.2026"]);
+  });
+
+  it("appends runs with additions and prunes old entries", async () => {
+    const { appendChanges } = await import("../scripts/scrape.mjs");
+    const now = new Date("2026-10-16T08:05:00Z");
+    const log = { entries: [{ at: "2026-07-01T08:00:00Z", act16: ["1-01072026"] }, { at: "2026-10-15T08:00:00Z", permits: ["5-14102026"] }] };
+    const next = appendChanges(log, { act16: ["9-15102026"], permits: [] }, now);
+    expect(next.entries.map((e) => e.at)).toEqual(["2026-10-15T08:00:00Z", "2026-10-16T08:05:00.000Z"]);
+    expect(next.entries[1]).toMatchObject({ act16: ["9-15102026"], permits: [] });
+    expect(appendChanges(next, { act16: [] }, now).entries).toHaveLength(2);
+  });
+});

@@ -1,5 +1,8 @@
 // "Проверка на имот": searches both registers and groups matches by cadastral parcel into a timeline.
 import { readableCase } from "../lib/textcase";
+import { normalizeQuery } from "../lib/search";
+import { addItem, getCachedUser, isWatched, removeItem } from "./watchlist";
+import { showToast } from "./shell";
 
 interface ClientRecord { n: string; d: string; o: string; r: string; m: string; s: string; k: string; t: string; c: string; h: string }
 interface Doc extends ClientRecord { reg: "act16" | "permits" }
@@ -10,7 +13,6 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const dateNum = (s: string) => { const [d, m, y] = s.split("."); return +y * 10000 + +m * 100 + +d; };
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n) + "…" : s);
 const fmt = (n: number) => n.toLocaleString("bg-BG").replace(/ /g, " ");
-const normalize = (s: string) => s.toLowerCase().replace(/[„“”"']/g, "").replace(/(^|\s)(ул|бул|ж\.?к|кв|м|с|гр)\.\s*/g, "$1$2. ").replace(/\s+/g, " ").trim();
 
 export function initCheck(): void {
   const form = document.getElementById("check-form") as HTMLFormElement;
@@ -18,10 +20,32 @@ export function initCheck(): void {
   const status = document.getElementById("check-status")!;
   const results = document.getElementById("check-results")!;
   const more = document.getElementById("check-more") as HTMLButtonElement;
+  const follow = document.getElementById("check-follow") as HTMLButtonElement;
   let docs: Doc[] | null = null;
   let groups: Group[] = [];
   let shown = 0;
   let terms: string[] = [];
+  let followKey = "";
+
+  // A saved search: the daily email digest reports new documents that match it.
+  function syncFollow() {
+    follow.hidden = !followKey;
+    const on = !!followKey && isWatched("search", followKey);
+    follow.setAttribute("aria-pressed", String(on));
+    follow.querySelector("[data-follow-text]")!.textContent = on ? "Следите това търсене" : "Следи това търсене";
+  }
+  follow.addEventListener("click", async () => {
+    if (!followKey) return;
+    if (isWatched("search", followKey)) await removeItem("search", followKey);
+    else {
+      await addItem({ kind: "search", key: followKey, label: `Търсене: „${followKey}“`, url: `/check/?q=${encodeURIComponent(followKey)}` });
+      showToast(
+        getCachedUser() ? "Ще ви известим по имейл за нови документи по това търсене." : "Търсенето е запазено на това устройство. Влезте, за да получавате известия по имейл.",
+        "/account/", getCachedUser() ? "Виж" : "Вход",
+      );
+    }
+    syncFollow();
+  });
 
   async function load(): Promise<Doc[]> {
     if (docs) return docs;
@@ -72,9 +96,11 @@ export function initCheck(): void {
   }
 
   async function search(q: string) {
-    const query = normalize(q);
+    const query = normalizeQuery(q);
     results.innerHTML = "";
     more.hidden = true;
+    followKey = query.length >= 2 ? query.slice(0, 200) : "";
+    syncFollow();
     if (query.length < 2) {
       status.textContent = query ? "Въведете поне 2 символа." : "";
       return;
@@ -84,7 +110,7 @@ export function initCheck(): void {
     const idQuery = /^\d{5}(\.\d*)*$/.test(query);
     const matched = all.filter((d) => {
       if (idQuery) return d.c.split(" ").some((c) => c.startsWith(query)) || d.n === query;
-      const hay = normalize(`${d.n} ${d.o} ${d.r} ${d.m} ${d.s} ${d.c} ${d.h}`);
+      const hay = normalizeQuery(`${d.n} ${d.o} ${d.r} ${d.m} ${d.s} ${d.c} ${d.h}`);
       return terms.every((t) => hay.includes(t));
     });
 

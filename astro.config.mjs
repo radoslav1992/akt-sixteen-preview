@@ -24,9 +24,12 @@ const onDemandPages = ['https://akt16.org/register/act16/', 'https://akt16.org/r
 export default defineConfig({
   site: "https://akt16.org",
   trailingSlash: "always",
+  // The JSON API checks Origin itself (src/lib/auth.ts). Astro's form check would also block the
+  // one-click unsubscribe POSTs that mail providers send without an Origin header.
+  security: { checkOrigin: false },
   integrations: [sitemap({
     customPages: [...new Set([...onDemandPages, ...recordPages])],
-    filter: (page) => !/\/(account|404)\/?$/.test(page),
+    filter: (page) => !/\/account\/|\/404\/?$/.test(page),
     // A document never changes after it is issued, so its issue date is an honest lastmod.
     serialize: (item) => (recordDates.has(item.url) ? { ...item, lastmod: recordDates.get(item.url) } : item),
   })],

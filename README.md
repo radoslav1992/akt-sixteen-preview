@@ -25,12 +25,14 @@ data/
     ekatte-sofia.json  ← ЕКАТТЕ → център на населеното място (Столична община)
     cache.json         ← Кеш на заявките към Nominatim
     points.json        ← Координати по запис (за картата)
-migrations/0001_init.sql ← D1 схема: профили, сесии, следени обекти
+  changes.json         ← Кои документи е добавил всеки скрейп (60 дни) — за имейл известията
+migrations/            ← D1 схема: профили, сесии, следени обекти (0001), имейли и известия (0002)
 src/
   content/blog/        ← Статии (Markdown) с FAQ във frontmatter
   content/intl/        ← Ръководства на английски и руски (/en/, /ru/)
   lib/                 ← data, companies, places (райони/квартали), parcels (история на имот),
-                         classify (тип сграда), stats, feeds (RSS/CSV), auth (D1)
+                         classify (тип сграда), stats, feeds (RSS/CSV), auth (D1),
+                         email (шаблони + Cloudflare Email Service), alerts (дневни известия), search
   components/          ← Дизайн система: Icon, RecordCard, DocRow, графики (YearBars, MonthlyTrend),
                          SofiaMap (SVG карта), BulgariaMap, FollowButton, FaqList
   scripts/             ← Клиентски скриптове: register, check, map (Leaflet), account, watchlist
@@ -45,8 +47,10 @@ src/
     map.astro                  ← Интерактивна карта (Leaflet + CARTO/OSM)
     new-buildings.astro        ← Нови жилищни сгради с Акт 16
     stats.astro, data.astro    ← Статистика и отворени данни (CSV/JSON)
-    account.astro              ← Вход, регистрация и следени обекти
+    account/                   ← Вход, регистрация, следени обекти; verify, forgot, reset
     api/auth/*, api/watchlist/* ← API за профили (D1)
+    api/alerts/*               ← Тестово известие и отписване с един клик
+  worker.ts            ← Worker entry: Astro за заявките + cron за дневните известия
 public/
   manifest.json        ← Web App Manifest (PWA)
   sw.js                ← Service Worker за офлайн достъп
@@ -160,6 +164,36 @@ npx wrangler d1 migrations apply akt16 --remote
 ```
 
 Без профил „Следени“ работи в localStorage на браузъра; след вход списъкът се слива с профила. Паролите се хешират с PBKDF2 (100 000 итерации). На безплатния план на Workers лимитът е 10 ms CPU на заявка — ако вход/регистрация връщат грешка 1102, намалете `PBKDF2_ITERATIONS` в `src/lib/auth.ts` (старите хешове продължават да работят).
+
+## Имейли и известия (Cloudflare Email Service)
+
+Сайтът изпраща три вида писма през binding-а `EMAIL` (`send_email` в `wrangler.jsonc`):
+
+- **Потвърждение на имейла** — при регистрация (връзка, валидна 3 дни; може да се изпрати повторно от профила).
+- **Нова парола** — от `/account/forgot/` (връзка, валидна 1 час, еднократна; изход от всички устройства).
+- **Дневно известие** — cron в 10:20 UTC (след ежедневния скрейп и деплой) праща по едно писмо на всеки потвърден
+  абонат, ако скрейпът е добавил документи по неговите следени райони, квартали, фирми, имоти, документи
+  или запазени търсения. Кои документи са нови се взима от `data/changes.json`, а не от датата на документа,
+  защото НАГ публикува с дни закъснение. Всяко писмо има `List-Unsubscribe` (отписване с един клик).
+
+Настройка (еднократно):
+
+1. Cloudflare Dashboard → **Compute → Email Service → Email Sending → Onboard Domain** → `akt16.org`.
+   Cloudflare добавя MX/SPF/DKIM записите на `cf-bounce.akt16.org` и DMARC автоматично (домейнът трябва да е на Cloudflare DNS).
+2. Изпращането до произволни адреси изисква **Workers Paid** план (3000 писма/месец са включени, след това $0.35 за 1000;
+   новите акаунти имат и по-нисък дневен лимит, който расте с репутацията). Подателят е `EMAIL_FROM` от `vars`
+   (по подразбиране `noreply@akt16.org`), отговорите отиват на `info@akt16.org`.
+3. Приложете миграциите (`npx wrangler d1 migrations apply akt16 --remote`) и деплойнете — cron тригерът
+   се регистрира от `triggers.crons`.
+
+Докато домейнът не е готов, регистрацията и входът работят нормално; писмата не се изпращат, а cron-ът спира
+без да губи известия (`E_SENDER_NOT_VERIFIED` → опитва пак на следващия ден). Изпратените писма и грешките
+се записват в таблица `alert_log`; резултатът от всеки cron е в логовете на Worker-а (`[alerts] {...}`).
+
+Локално `wrangler dev` симулира изпращането — писмата се записват като файлове и пътят се отпечатва в конзолата.
+За ръчно пускане на cron локално: `curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=20+10+*+*+*"`
+(при Astro заявката минава през assets router-а, затова за този тест пуснете `wrangler dev -c` с копие на
+`dist/server/wrangler.json` без `assets`).
 
 ## Деплой на Cloudflare
 

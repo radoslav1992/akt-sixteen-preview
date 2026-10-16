@@ -16,6 +16,7 @@ export interface SessionUser {
   email: string;
   name: string | null;
   email_alerts?: number | boolean;
+  email_verified?: boolean;
 }
 
 const ITEMS_KEY = "akt16:watch";
@@ -118,9 +119,15 @@ export async function refreshSession(): Promise<SessionUser | null> {
 }
 
 export const auth = {
-  register: (email: string, password: string, name?: string) => api<{ user: SessionUser }>("POST", "/api/auth/register/", { email, password, name }),
+  register: (email: string, password: string, name?: string, emailAlerts = true) =>
+    api<{ user: SessionUser }>("POST", "/api/auth/register/", { email, password, name, email_alerts: emailAlerts }),
   login: (email: string, password: string) => api<{ user: SessionUser }>("POST", "/api/auth/login/", { email, password }),
   logout: () => api("POST", "/api/auth/logout/", {}),
   settings: (data: { name?: string; email_alerts?: boolean }) => api<{ user: SessionUser }>("POST", "/api/auth/settings/", data),
   deleteAccount: (password: string) => api("DELETE", "/api/auth/account/", { password }),
+  verify: (token: string) => api<{ ok: true }>("POST", "/api/auth/verify/", { token }),
+  resendVerification: () => api<{ ok: true; already?: boolean }>("POST", "/api/auth/verify-resend/", {}),
+  forgot: (email: string) => api<{ ok: true; message: string }>("POST", "/api/auth/forgot/", { email }),
+  reset: (token: string, password: string) => api<{ user: SessionUser }>("POST", "/api/auth/reset/", { token, password }),
+  testAlert: () => api<{ ok: true; documents: number }>("POST", "/api/alerts/test/", {}),
 };
