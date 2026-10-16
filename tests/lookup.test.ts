@@ -12,6 +12,8 @@ import {
 } from "../src/lib/lookup";
 import { GET, OPTIONS } from "../src/pages/api/lookup";
 import { dateKey } from "../src/lib/format";
+import { extractCadastreIds, getRecords, parcelIdOf, type Record } from "../src/lib/data";
+import { getParcelGroups, getParcelIndex } from "../src/lib/parcels";
 
 const NOW = new Date("2026-10-16T12:00:00Z");
 const run = (qs: string): LookupResult => {
@@ -184,5 +186,30 @@ describe("GET /api/lookup/", () => {
     const pre = await (OPTIONS as any)({ request: new Request("https://akt16.org/api/lookup/", { method: "OPTIONS" }) });
     expect(pre.status).toBe(204);
     expect(pre.headers.get("Access-Control-Allow-Origin")).toBe("*");
+  });
+});
+
+describe("documents filed under building and unit ids", () => {
+  // Акт 16 is often filed under the building id (68134.1932.720.1) and the permit under the parcel id.
+  // Pick one whose parcel also has documents of its own: the case that used to hide the certificate.
+  const index = getParcelIndex();
+  const unitOf = (r: Record) => extractCadastreIds(r.scope).find((id) => id.split(".").length > 3 && index.has(parcelIdOf(id)) && !extractCadastreIds(r.scope).includes(parcelIdOf(id)));
+  const certificate = getRecords("act16").find((r) => unitOf(r))!;
+  const unitId = unitOf(certificate)!;
+  const parcel = parcelIdOf(unitId);
+
+  it("folds them into the parcel for cadastral lookups", () => {
+    for (const cad of [parcel, unitId]) {
+      const result = run(`cad=${cad}`);
+      expect(result.parcels[0].id).toBe(parcel);
+      expect(result.parcels[0].docs.some((d) => d.register === "act16" && d.number === certificate.number && d.date === certificate.date)).toBe(true);
+      expect(result.parcels[0].act16).not.toBeNull();
+    }
+  });
+
+  it("groups text matches by parcel too", () => {
+    const groups = getParcelGroups();
+    expect(groups.get(parcel)?.some((d) => d.record === certificate)).toBe(true);
+    for (const key of groups.keys()) expect(key.split(".").length).toBeLessThanOrEqual(3);
   });
 });

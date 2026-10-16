@@ -1,5 +1,5 @@
 // Account page: sign-in / registration, profile settings and the watchlist with "new since last visit" counts.
-import { matchesQuery, queryTerms } from "../lib/search";
+import { matchesQuery, parcelIdOf, queryTerms } from "../lib/search";
 import { auth, getCachedUser, getItems, markSeen, onChange, refreshSession, removeItem, setCachedUser, syncAfterLogin, type WatchItem } from "./watchlist";
 
 interface ClientRecord { n: string; d: string; r: string; m: string; c: string; h: string; k: string; o?: string; s?: string }
@@ -40,7 +40,7 @@ function isNewSince(r: TaggedRecord, since: string): boolean {
 
 function matcher(item: WatchItem): ((r: ClientRecord) => boolean) | null {
   switch (item.kind) {
-    case "parcel": return (r) => r.c.split(" ").includes(item.key);
+    case "parcel": { const parcel = parcelIdOf(item.key); return (r) => r.c.split(" ").some((id) => id && parcelIdOf(id) === parcel); }
     case "region": { const name = item.label.replace(/^Район\s+/, ""); return (r) => r.r === name; }
     case "neighborhood": { const name = item.label.replace(/^(с\.|гр\.)\s+/, ""); return (r) => r.h === name; }
     case "search": {

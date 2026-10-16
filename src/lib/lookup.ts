@@ -1,8 +1,8 @@
 // Public lookup API (/api/lookup/): parcels, streets and neighbourhoods across both registers.
 // Pure logic with no Workers imports, so it runs under vitest as well as in the worker.
 // Search indexes are built lazily, once per isolate, so a request only scans prebuilt strings.
-import { extractCadastreIds, getRecords, recordSlug, slugifyRegion, type Record, type RegisterId } from "./data";
-import { getParcelIndex } from "./parcels";
+import { extractCadastreIds, getRecords, parcelIdOf, recordSlug, slugifyRegion, type Record, type RegisterId } from "./data";
+import { getParcelGroups } from "./parcels";
 import {
   DISTRICTS,
   NEIGHBORHOOD_PAGE_MIN_DOCS,
@@ -319,7 +319,6 @@ function areaTest(area: Area | null): ((e: Entry) => boolean) | null {
 
 // ---------- Output helpers ----------
 
-const parcelOf = (id: string) => id.split(".").slice(0, 3).join(".");
 // Change of use or splitting flats inside an existing block is filed as "многофамилна сграда" too.
 const CHANGE_OF_USE = /(смяна|промяна)\s+(на\s+)?предназначение|разделяне|обединяване/iu;
 const isNewBuilding = (r: Record) => isNewApartmentBuilding(r) && !CHANGE_OF_USE.test(r.object);
@@ -417,14 +416,13 @@ function parcelOut(g: Group): LookupParcel {
   };
 }
 
-/** Groups matched documents by their first cadastral id, like /check/, pulling in the parcel's full history. */
+/** Groups matched documents by the parcel of their first cadastral id, like /check/, pulling in the parcel's full history. */
 function groupByParcel(matched: Entry[]): Group[] {
-  const parcels = getParcelIndex();
+  const parcels = getParcelGroups();
   const groups = new Map<string, Group>();
   for (const e of matched) {
-    // A unit id (сграда/СОС) belongs with its parcel when the parcel has documents of its own.
-    const first = idsOf(e.record)[0] ?? null;
-    const id = first && first.split(".").length > 3 && parcels.has(parcelOf(first)) ? parcelOf(first) : first;
+    const first = idsOf(e.record)[0];
+    const id = first ? parcelIdOf(first) : null;
     const key = id ?? `doc:${e.reg}:${recordSlug(e.record)}`;
     if (groups.has(key)) continue;
     const docs = (id && parcels.get(id)) || [{ registerId: e.reg, record: e.record }];
@@ -436,17 +434,15 @@ function groupByParcel(matched: Entry[]): Group[] {
 // ---------- Matchers ----------
 
 function matchCad(cad: string): { groups: Group[]; matched: number } {
-  const parcels = getParcelIndex();
-  // A building or unit id (68134.4082.123.1.15) resolves to its parcel (68134.4082.123) when that is known.
-  const exactKey = [parcelOf(cad), cad].find((k) => k.split(".").length >= 3 && parcels.has(k));
+  // Keys are parcels; documents filed under a building or unit id (68134.4082.123.1.15) are folded into theirs.
+  const parcels = getParcelGroups();
+  const exactKey = cad.split(".").length >= 3 && parcels.has(parcelIdOf(cad)) ? parcelIdOf(cad) : undefined;
   let keys: string[];
   if (exactKey) keys = [exactKey];
   else {
     const all = [...parcels.keys()];
     keys = all.filter((k) => k.startsWith(`${cad}.`));
     if (!keys.length) keys = all.filter((k) => k.startsWith(cad));
-    // Unit ids add nothing when their parcel is listed too.
-    keys = keys.filter((k) => k.split(".").length <= 3 || !parcels.has(parcelOf(k)));
   }
   const docs = new Set<Record>();
   const groups = keys.map((k) => {

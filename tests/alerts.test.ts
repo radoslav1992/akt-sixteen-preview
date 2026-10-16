@@ -23,6 +23,15 @@ describe("alert matching", () => {
     expect(matchesItem({ kind: "record", key: `act16:${recordSlug(withParcel)}`, label: "", url: "/" }, d)).toBe(true);
   });
 
+  it("matches a watched parcel when a document is filed under its building or unit id", () => {
+    const certificate = act16.find((r) => extractCadastreIds(r.scope).some((id) => id.split(".").length > 3))!;
+    const unitId = extractCadastreIds(certificate.scope).find((id) => id.split(".").length > 3)!;
+    const parcel = unitId.split(".").slice(0, 3).join(".");
+    expect(matchesItem({ kind: "parcel", key: parcel, label: parcel, url: "/" }, doc(certificate))).toBe(true);
+    expect(matchesItem({ kind: "parcel", key: `${parcel}.9.99`, label: "", url: "/" }, doc(certificate))).toBe(true);
+    expect(matchesItem({ kind: "parcel", key: `${parcel}9`, label: "", url: "/" }, doc(certificate))).toBe(false);
+  });
+
   it("matches companies and neighborhoods by slug", () => {
     const withCompany = act16.find((r) => companiesInRecord(r, "act16").length)!;
     const company = companiesInRecord(withCompany, "act16")[0];
