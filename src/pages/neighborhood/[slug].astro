@@ -1,0 +1,127 @@
+---
+import Base from "../../layouts/Base.astro";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import FollowButton from "../../components/FollowButton.astro";
+import RecordCard from "../../components/RecordCard.astro";
+import DocRow from "../../components/DocRow.astro";
+import YearBars from "../../components/YearBars.astro";
+import BarList from "../../components/BarList.astro";
+import Icon from "../../components/Icon.astro";
+import { breadcrumbs } from "../../lib/seo";
+import { slugifyRegion, type Record, type RegisterId } from "../../lib/data";
+import { getListedNeighborhoods, neighborhoodLabel, type NeighborhoodSummary } from "../../lib/places";
+import { classify, BUILDING_TYPES } from "../../lib/classify";
+import { companiesInRecord, hasCompanyPage, getCompanyIndex } from "../../lib/companies";
+import { byYear, countBy, sortByDateDesc } from "../../lib/stats";
+import { fmtNumber, dateKey } from "../../lib/format";
+
+export function getStaticPaths() {
+  const all = getListedNeighborhoods();
+  return all.map((n) => ({ params: { slug: n.slug }, props: { hood: n, siblings: all.filter((o) => o.slug !== n.slug && o.regions[0]?.[0] === n.regions[0]?.[0]).slice(0, 12) } }));
+}
+
+const { hood, siblings } = Astro.props as { hood: NeighborhoodSummary; siblings: NeighborhoodSummary[] };
+const label = neighborhoodLabel(hood);
+const region = hood.regions[0]?.[0];
+const act16 = sortByDateDesc(hood.act16);
+const permits = sortByDateDesc(hood.permits);
+const all: Array<{ registerId: RegisterId; record: Record }> = [
+  ...act16.map((record) => ({ registerId: "act16" as RegisterId, record })),
+  ...permits.map((record) => ({ registerId: "permits" as RegisterId, record })),
+].sort((a, b) => dateKey(b.record.date) - dateKey(a.record.date));
+const types = countBy([...act16, ...permits], classify);
+const multiNew = act16.filter((r) => classify(r) === "multi").slice(0, 6);
+
+const companyCounts = new Map<string, number>();
+for (const { registerId, record } of all) for (const c of companiesInRecord(record, registerId)) if (hasCompanyPage(c.slug) && c.form) companyCounts.set(c.slug, (companyCounts.get(c.slug) ?? 0) + 1);
+const topCompanies = [...companyCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([s, n]) => ({ c: getCompanyIndex().get(s)!, n }));
+
+const isVillage = hood.kind === "с." || hood.kind === "гр.";
+const title = `${isVillage ? label : hood.name}${region && !isVillage ? `, ${region}` : ""} — Акт 16 и разрешения за строеж`;
+const description = `Ново строителство в ${label}${region ? ` (район ${region})` : ""}, София: ${fmtNumber(act16.length)} удостоверения Акт 16 и ${fmtNumber(permits.length)} разрешения за строеж по данни от НАГ, с последните сгради и инвеститори.`;
+const place = {
+  "@context": "https://schema.org",
+  "@type": "Place",
+  name: label,
+  containedInPlace: region ? { "@type": "AdministrativeArea", name: `Район ${region}, София` } : { "@type": "City", name: "София" },
+  url: `https://akt16.org/neighborhood/${hood.slug}/`,
+};
+---
+
+<Base title={title} description={description} structuredData={[place, breadcrumbs([
+  { name: "Начало", path: "/" }, { name: "Квартали", path: "/neighborhood/" }, { name: label, path: Astro.url.pathname },
+])]}>
+  <Breadcrumbs items={[
+    { name: "Начало", path: "/" },
+    ...(region ? [{ name: region, path: `/region/${slugifyRegion(region)}/` }] : []),
+    { name: "Квартали", path: "/neighborhood/" },
+    { name: label },
+  ]} />
+
+  <header class="page-head">
+    <span class="eyebrow">{isVillage ? (hood.kind === "с." ? "Село в Столична община" : "Град в Столична община") : `Квартал${region ? ` · район ${region}` : ""}`}</span>
+    <h1>Акт 16 и разрешения за строеж — {label}</h1>
+    <p class="page-head__lead">{fmtNumber(hood.total)} документа в регистрите на НАГ: {fmtNumber(act16.length)} удостоверения за въвеждане в експлоатация и {fmtNumber(permits.length)} разрешения за строеж{multiNew.length ? `, включително нови многофамилни жилищни сгради` : ""}.</p>
+    <div class="page-head__actions">
+      <FollowButton kind="neighborhood" itemKey={hood.slug} label={label} url={`/neighborhood/${hood.slug}/`} />
+      <a class="btn btn--ghost btn--sm" href={`/check/?q=${encodeURIComponent(hood.name)}`}><Icon name="search" size={16} /> Проверка в {hood.name}</a>
+      {region && <a class="btn btn--ghost btn--sm" href={`/region/${slugifyRegion(region)}/`}>Район {region}</a>}
+    </div>
+  </header>
+
+  <section class="stat-grid">
+    <div class="stat stat--act16"><div class="stat__value">{fmtNumber(act16.length)}</div><div class="stat__label">Акт 16</div></div>
+    <div class="stat stat--permits"><div class="stat__value">{fmtNumber(permits.length)}</div><div class="stat__label">Разрешения за строеж</div></div>
+    <div class="stat"><div class="stat__value">{fmtNumber(types.get("multi") ?? 0)}</div><div class="stat__label">Жилищни блокове</div><div class="stat__sub">документи за многофамилни сгради</div></div>
+    <div class="stat"><div class="stat__value">{fmtNumber(types.get("single") ?? 0)}</div><div class="stat__label">Къщи</div><div class="stat__sub">еднофамилни и вилни сгради</div></div>
+  </section>
+
+  {multiNew.length > 0 && (
+    <section class="section">
+      <div class="section-head"><h2>Нови жилищни сгради с Акт 16 в {label}</h2></div>
+      <div class="grid-auto">{multiNew.map((r) => <RecordCard registerId="act16" record={r} />)}</div>
+    </section>
+  )}
+
+  <section class="section grid-2">
+    <div class="card">
+      <h2 class="card-title">По години</h2>
+      <YearBars caption={`Документи по години в ${label}`} series={[
+        { id: "permits", label: "Разрешения за строеж", values: byYear(permits) },
+        { id: "act16", label: "Акт 16", values: byYear(act16) },
+      ]} />
+    </div>
+    <div class="card">
+      <h2 class="card-title">Какво се строи</h2>
+      <BarList rows={BUILDING_TYPES.map((t) => ({ label: t.label, value: types.get(t.id) ?? 0 })).filter((r) => r.value > 0).sort((a, b) => b.value - a.value)} />
+      {topCompanies.length > 0 && (
+        <>
+          <h2 class="card-title card-title--sub">Активни фирми</h2>
+          <BarList tone="yellow" rows={topCompanies.map(({ c, n }) => ({ label: c.display, value: n, href: `/company/${c.slug}/` }))} />
+        </>
+      )}
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>Всички документи в {label}</h2></div>
+    <ul class="doc-list">{all.slice(0, 120).map((d) => <DocRow registerId={d.registerId} record={d.record} showRegion={false} showParty />)}</ul>
+    {all.length > 120 && <p class="more-note">Показани са последните 120 от {fmtNumber(all.length)} документа. Пълен списък: <a href={`/check/?q=${encodeURIComponent(hood.name)}`}>търсене</a>{region && <> или <a href={`/region/${slugifyRegion(region)}/act16/`}>всички в район {region}</a></>}.</p>}
+  </section>
+
+  {siblings.length > 0 && (
+    <section class="section">
+      <h2 class="card-title">Други квартали{region ? ` в ${region}` : ""}</h2>
+      <div class="chip-row">{siblings.map((s) => <a class="chip" href={`/neighborhood/${s.slug}/`}>{neighborhoodLabel(s)} <span class="chip__count">{s.total}</span></a>)}</div>
+    </section>
+  )}
+
+  <p class="notice notice--info hood-note">Кварталът е определен по полето „Местност“ и кадастралния идентификатор в регистъра, затова границите са приблизителни.</p>
+</Base>
+
+<style>
+  .card-title { font-size: 1.3rem; margin-bottom: 1rem; }
+  .card-title--sub { margin-top: 1.5rem; font-size: 1.1rem; }
+  .more-note { margin-top: 1rem; color: var(--muted); }
+  .hood-note { margin-top: 2rem; }
+</style>

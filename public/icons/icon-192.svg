@@ -1,10 +1,1 @@
-<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 192 192">
-  <defs>
-    <linearGradient id="g" x1="0" y1="0" x2="1" y2="1">
-      <stop offset="0%" stop-color="#7c3aed"/>
-      <stop offset="100%" stop-color="#f97316"/>
-    </linearGradient>
-  </defs>
-  <rect width="192" height="192" rx="32" fill="url(#g)"/>
-  <text x="96" y="125" text-anchor="middle" fill="white" font-family="system-ui, sans-serif" font-size="96" font-weight="bold">16</text>
-</svg>
+<svg xmlns="http://www.w3.org/2000/svg" width="192" height="192" viewBox="0 0 64 64"><defs><pattern id="h" width="10" height="10" patternUnits="userSpaceOnUse" patternTransform="rotate(45)"><rect width="5" height="10" fill="#121418"/></pattern></defs><rect width="64" height="64" rx="12" fill="#ffc21a"/><path d="M44 64 64 44v8a12 12 0 0 1-12 12z" fill="url(#h)"/><rect x="2" y="2" width="60" height="60" rx="10" fill="none" stroke="#121418" stroke-width="4"/><text x="32" y="43" text-anchor="middle" fill="#121418" font-family="Arial Narrow, Arial, sans-serif" font-size="30" font-weight="900" letter-spacing="-1">16</text></svg>

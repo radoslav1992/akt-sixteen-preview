@@ -1,0 +1,65 @@
+---
+// Monthly counts as lines (one per register), with a crosshair tooltip per month.
+import { fmtNumber, MONTHS_SHORT, MONTHS } from "../lib/format";
+interface Series { id: "act16" | "permits"; label: string; short?: string; values: Map<string, number> }
+interface Props { series: Series[]; months: string[]; caption: string }
+const { series, months, caption } = Astro.props; // months as "ГГГГ-ММ", oldest first
+
+const W = 720, H = 240, top = 16, bottom = 28, left = 34, right = 96;
+const plotW = W - left - right, plotH = H - top - bottom;
+const max = Math.max(1, ...series.flatMap((s) => months.map((m) => s.values.get(m) ?? 0)));
+const niceMax = Math.ceil(max / 50) * 50 || 10;
+const x = (i: number) => left + (months.length < 2 ? plotW / 2 : (i / (months.length - 1)) * plotW);
+const y = (v: number) => top + plotH - (v / niceMax) * plotH;
+const label = (m: string) => { const [yy, mm] = m.split("-"); return `${MONTHS_SHORT[+mm - 1]} ${yy.slice(2)}`; };
+const longLabel = (m: string) => { const [yy, mm] = m.split("-"); return `${MONTHS[+mm - 1]} ${yy}`; };
+const ticks = [0, 0.5, 1].map((t) => Math.round(niceMax * t));
+const step = Math.max(1, Math.ceil(months.length / 8));
+---
+<figure class="chart-wrap" data-chart>
+  <div class="chart-legend">
+    {series.map((s) => <span><i style={`background:var(--mark-${s.id})`}></i>{s.label}</span>)}
+  </div>
+  <svg class="chart" viewBox={`0 0 ${W} ${H}`} role="img" aria-label={caption}>
+    {ticks.map((t) => (
+      <g>
+        <line class="chart__grid" x1={left} x2={left + plotW} y1={y(t)} y2={y(t)} />
+        <text x={left - 6} y={y(t) + 4} text-anchor="end">{t}</text>
+      </g>
+    ))}
+    {months.map((m, i) => i % step === 0 || i === months.length - 1 ? <text x={x(i)} y={H - 8} text-anchor="middle">{label(m)}</text> : null)}
+    {series.map((s) => {
+      const pts = months.map((m, i) => `${x(i).toFixed(1)},${y(s.values.get(m) ?? 0).toFixed(1)}`);
+      const last = s.values.get(months[months.length - 1]) ?? 0;
+      return (
+        <g>
+          <polyline points={pts.join(" ")} fill="none" stroke={`var(--mark-${s.id})`} stroke-width="2" stroke-linejoin="round" stroke-linecap="round" />
+          <circle cx={x(months.length - 1)} cy={y(last)} r="4" fill={`var(--mark-${s.id})`} stroke="var(--surface)" stroke-width="2" />
+          <text class="chart__value" x={x(months.length - 1) + 8} y={y(last) + 4}>{s.short ?? s.label} {fmtNumber(last)}</text>
+        </g>
+      );
+    })}
+    {months.map((m, i) => (
+      <rect
+        x={x(i) - plotW / Math.max(1, months.length - 1) / 2}
+        y={top}
+        width={plotW / Math.max(1, months.length - 1)}
+        height={plotH}
+        fill="transparent"
+        data-tip={`<b>${longLabel(m)}</b><br>${series.map((s) => `${s.label}: ${fmtNumber(s.values.get(m) ?? 0)}`).join("<br>")}`}
+        data-x={x(i)}
+      />
+    ))}
+    <line class="chart__crosshair" x1="0" x2="0" y1={top} y2={top + plotH} stroke="var(--ink)" stroke-width="1" stroke-dasharray="3 3" opacity="0" />
+  </svg>
+  <table class="sr-only">
+    <caption>{caption}</caption>
+    <thead><tr><th>Месец</th>{series.map((s) => <th>{s.label}</th>)}</tr></thead>
+    <tbody>{months.map((m) => <tr><td>{longLabel(m)}</td>{series.map((s) => <td>{s.values.get(m) ?? 0}</td>)}</tr>)}</tbody>
+  </table>
+</figure>
+
+<script>
+  import { initChartTips } from "../scripts/charttips";
+  initChartTips();
+</script>

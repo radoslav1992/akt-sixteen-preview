@@ -1,0 +1,12 @@
+---
+interface Props { items: Array<{ name: string; path?: string }> }
+const { items } = Astro.props;
+---
+<nav class="breadcrumbs" aria-label="Навигационна пътека">
+  {items.map((item, i) => (
+    <>
+      {i > 0 && <span class="breadcrumbs__sep" aria-hidden="true">/</span>}
+      {item.path && i < items.length - 1 ? <a href={item.path}>{item.name}</a> : <span aria-current="page">{item.name}</span>}
+    </>
+  ))}
+</nav>

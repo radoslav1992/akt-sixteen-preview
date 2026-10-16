@@ -6,12 +6,28 @@ export async function getStaticPaths() {
   const posts = await getCollection("blog");
   return posts.map((post) => ({
     params: { slug: post.id },
-    props: { post },
+    props: { post, posts },
   }));
 }
 
-const { post } = Astro.props;
+const { post, posts } = Astro.props;
 const { Content } = await render(post);
+const tags = new Set(post.data.tags);
+const related = posts
+  .filter((p) => p.id !== post.id)
+  .map((p) => ({ p, score: p.data.tags.filter((t) => tags.has(t)).length }))
+  .sort((a, b) => b.score - a.score || b.p.data.date.getTime() - a.p.data.date.getTime())
+  .slice(0, 5)
+  .map(({ p }) => ({ title: p.data.title, href: `/blog/${p.id}/` }));
+// The definition guide has English and Russian counterparts for foreign buyers.
+const alternates = post.id === "kakvo-e-akt-16"
+  ? [
+      { hreflang: "bg", href: "/blog/kakvo-e-akt-16/" },
+      { hreflang: "en", href: "/en/act-16-bulgaria/" },
+      { hreflang: "ru", href: "/ru/akt-16-bolgariya/" },
+      { hreflang: "x-default", href: "/blog/kakvo-e-akt-16/" },
+    ]
+  : [];
 ---
 
 <BlogPost
@@ -20,6 +36,9 @@ const { Content } = await render(post);
   date={post.data.date}
   updatedDate={post.data.updatedDate}
   tags={post.data.tags}
+  faq={post.data.faq}
+  related={related}
+  alternates={alternates}
 >
   <Content />
 </BlogPost>

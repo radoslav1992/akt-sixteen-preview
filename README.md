@@ -15,20 +15,38 @@ Mobile-first PWA (Progressive Web App) за проследяване на раз
 
 ```
 scripts/scrape.mjs     ← Node.js скрейпър за NAG Sofia API (поддържа множество регистри)
+scripts/geocode.mjs    ← Инкрементално геокодиране (Nominatim + кеш)
+scripts/geo-lib.mjs    ← Чисти функции: парсване на адрес/местност, заявки, точки
+scripts/build-ekatte.mjs ← Генерира data/geo/ekatte-sofia.json
 data/
   certificates.json    ← Акт 16 — удостоверения за експлоатация
   permits.json         ← Разрешения за строеж
+  geo/
+    ekatte-sofia.json  ← ЕКАТТЕ → център на населеното място (Столична община)
+    cache.json         ← Кеш на заявките към Nominatim
+    points.json        ← Координати по запис (за картата)
+migrations/0001_init.sql ← D1 схема: профили, сесии, следени обекти
 src/
-  content/blog/        ← Markdown статии за SEO
+  content/blog/        ← Статии (Markdown) с FAQ във frontmatter
+  content/intl/        ← Ръководства на английски и руски (/en/, /ru/)
+  lib/                 ← data, companies, places (райони/квартали), parcels (история на имот),
+                         classify (тип сграда), stats, feeds (RSS/CSV), auth (D1)
+  components/          ← Дизайн система: Icon, RecordCard, DocRow, графики (YearBars, MonthlyTrend),
+                         SofiaMap (SVG карта), BulgariaMap, FollowButton, FaqList
+  scripts/             ← Клиентски скриптове: register, check, map (Leaflet), account, watchlist
   pages/
-    index.astro        ← Начална страница с обобщение за двата регистъра
-    register/[id].astro ← Таблица с филтри и пагинация (act16 / permits)
-    blog/index.astro   ← Списък с всички статии
-    blog/[slug].astro  ← Отделна статия
-    stats.astro        ← Статистика по район и месец с табове
-  lib/data.ts          ← Помощни функции за работа с данни
-  layouts/Base.astro   ← Общ layout с OG мета тагове и PWA мета тагове
-  layouts/BlogPost.astro ← Layout за статия със structured data
+    index.astro                ← Начало: търсене, пулс на регистрите, карта, нови сгради
+    check.astro                ← Проверка на имот: двата регистъра, групирани по имот
+    register/[id].astro        ← Търсене в регистъра (on demand; ?region= → 301)
+    register/[id]/[slug].astro ← Документ (on demand) с история на имота
+    region/…                   ← 24 района + пълни списъци /region/<район>/<регистър>/
+    neighborhood/…             ← Квартали и села
+    company/…                  ← Фирми: инвеститори и строителен надзор (само юридически лица)
+    map.astro                  ← Интерактивна карта (Leaflet + CARTO/OSM)
+    new-buildings.astro        ← Нови жилищни сгради с Акт 16
+    stats.astro, data.astro    ← Статистика и отворени данни (CSV/JSON)
+    account.astro              ← Вход, регистрация и следени обекти
+    api/auth/*, api/watchlist/* ← API за профили (D1)
 public/
   manifest.json        ← Web App Manifest (PWA)
   sw.js                ← Service Worker за офлайн достъп
@@ -59,8 +77,20 @@ node scripts/scrape.mjs 90 permits
 # Пълно събиране (последната 1 година)
 npm run scrape:full
 
+# Геокодиране (до 400 заявки към Nominatim, макс. 8 мин)
+npm run geocode
+
+# Само преизграждане на data/geo/points.json от кеша (без мрежа)
+node scripts/geocode.mjs --no-network
+
 # Тестове
 npm test
+
+# След билд: проверка на статичните страници (h1, canonical, вътрешни линкове, sitemap)
+node scripts/check-seo.mjs
+
+# Проверка на страниците, рендерирани от worker-а (стартирайте wrangler dev преди това)
+node scripts/check-worker.mjs http://localhost:8787
 
 # Билд
 npm run build
@@ -93,11 +123,45 @@ npm run build
 | `region` | Район в София |
 | `scope` | Адрес / местност / кадастрален идентификатор |
 
+## Геокодиране
+
+`scripts/geocode.mjs` намира координати на записите постепенно, всеки ден след скрейпването:
+
+1. От полето `scope` се извличат адрес (`ул. Кутловица`), местност (`Манастирски ливади - запад`) и кадастрален идентификатор (`68134.702.9832` → ЕКАТТЕ `68134`).
+2. За всеки запис се правят заявки към [Nominatim](https://nominatim.openstreetmap.org/) в ред адрес → местност, винаги в рамките на София (или на селото/града за записи извън града), напр. `ул. Иван Денкоглу 40, София, България`. Записите се обработват от най-новите към най-старите.
+3. Всяка заявка (успешна или не) се пази в `data/geo/cache.json`. Неуспешните се опитват отново след 60 дни. Резултати извън Столична община се отхвърлят.
+4. `data/geo/points.json` се генерира наново при всяко пускане: `"<регистър>:<номер>-<дата>": [lat, lng, точност]`.
+
+| Точност | Значение |
+|---------|----------|
+| `1` | Адрес (улица и номер) |
+| `2` | Местност / квартал |
+| `3` | Център на селото/града по ЕКАТТЕ (само извън град София — центърът на София не носи информация) |
+
+**Политика за използване на Nominatim.** Спазваме [правилата на OSMF](https://operations.osmfoundation.org/policies/nominatim/): последователни заявки, не повече от 1 в секунда (пауза ≥ 1,1 с), идентифициращ `User-Agent` (`akt16.org-geocoder/1.0`), кеширане на всички отговори, лимит на заявките за всяко пускане и спиране при грешки (с експоненциално изчакване при 429/5xx). Данните са © OpenStreetMap contributors (ODbL) — навсякъде, където се показват точките (карта, експорт), трябва да има атрибуция „© OpenStreetMap contributors“ с връзка към https://www.openstreetmap.org/copyright.
+
+**Първоначално попълване (backfill).** Ежедневното пускане прави до 400 заявки за 8 минути. За да се попълнят наведнъж старите записи, стартирайте ръчно **Actions → Scrape NAG Certificates → Run workflow** с напр. `geocode_limit` = `2500` и `geocode_minutes` = `45` (задачата има лимит от 60 минути). Повторете, докато в лога `still to try` стигне 0.
+
+Центровете на населените места (`data/geo/ekatte-sofia.json`) идват от [yurukov/Bulgaria-geocoding](https://github.com/yurukov/Bulgaria-geocoding) и се обновяват с `node scripts/build-ekatte.mjs`.
+
 ## GitHub Actions
 
-- **Scrape** (`scrape.yml`): Всеки ден в 08:00 UTC. Може да се стартира и ръчно.
+- **Scrape** (`scrape.yml`): Всеки ден в 08:00 UTC — скрейпване и геокодиране. Може да се стартира и ръчно (`days_back`, `geocode_limit`, `geocode_minutes`).
 
-## Деплой на Cloudflare Pages
+## Профили и следени обекти (D1)
+
+Профилите, сесиите и списъците „Следени“ са в Cloudflare D1 база `akt16` (binding `DB` в `wrangler.jsonc`). Схемата е в `migrations/`.
+
+```bash
+# Локално
+npx wrangler d1 migrations apply akt16 --local
+# Production (само при нова миграция)
+npx wrangler d1 migrations apply akt16 --remote
+```
+
+Без профил „Следени“ работи в localStorage на браузъра; след вход списъкът се слива с профила. Паролите се хешират с PBKDF2 (100 000 итерации). На безплатния план на Workers лимитът е 10 ms CPU на заявка — ако вход/регистрация връщат грешка 1102, намалете `PBKDF2_ITERATIONS` в `src/lib/auth.ts` (старите хешове продължават да работят).
+
+## Деплой на Cloudflare
 
 Сайтът е достъпен на [akt16.org](https://akt16.org).
 

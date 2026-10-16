@@ -1,0 +1,20 @@
+---
+// Compact list row for a register document; used by archives, companies, districts and neighbourhoods.
+import { recordSlug, type Record, type RegisterId } from "../lib/data";
+import { sentenceCase, truncate } from "../lib/format";
+interface Props { registerId: RegisterId; record: Record; showRegion?: boolean; showParty?: boolean; maxLength?: number }
+const { registerId, record: r, showRegion = true, showParty = false, maxLength = 220 } = Astro.props;
+const party = registerId === "permits" ? r.employer : r.constructionOversight;
+---
+<li>
+  <a class="doc-row" href={`/register/${registerId}/${recordSlug(r)}/`}>
+    <span class:list={["doc-row__kind", `doc-row__kind--${registerId}`]} aria-hidden="true"></span>
+    <span class="doc-row__top">
+      <span class="doc-row__num">{registerId === "act16" ? "Акт 16" : "РС"} № {r.number}</span>
+      <time datetime={r.date.split(".").reverse().join("-")}>{r.date}</time>
+      {showRegion && r.region && <span>{r.region}</span>}
+      {showParty && party && <span>{truncate(party, 60)}</span>}
+    </span>
+    <span class="doc-row__text">{truncate(sentenceCase(r.object), maxLength)}</span>
+  </a>
+</li>

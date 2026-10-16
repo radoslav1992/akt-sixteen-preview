@@ -1,7 +1,9 @@
 import type { APIRoute, GetStaticPaths } from "astro";
-import { getRecords, type RegisterId, type Record } from "../../lib/data";
+import { getRecords, extractCadastreIds, type RegisterId, type Record } from "../../lib/data";
+import { classify } from "../../lib/classify";
+import { neighborhoodOf } from "../../lib/places";
 
-const MAX_OBJECT_LEN = 200;
+const MAX_OBJECT_LEN = 180;
 const MAX_SCOPE_LEN = 120;
 const MAX_META_LEN = 80;
 
@@ -10,8 +12,8 @@ function truncate(s: string, max: number): string {
 }
 
 function toClientRecord(r: Record, registerId: RegisterId) {
-  const meta =
-    registerId === "permits" ? r.employer : r.constructionOversight;
+  const meta = registerId === "permits" ? r.employer : r.constructionOversight;
+  const hood = neighborhoodOf(r);
   return {
     n: r.number,
     d: r.date,
@@ -20,6 +22,9 @@ function toClientRecord(r: Record, registerId: RegisterId) {
     m: truncate(meta, MAX_META_LEN),
     s: truncate(r.scope, MAX_SCOPE_LEN),
     k: `${r.number}-${r.date.replace(/\./g, "")}`,
+    t: classify(r),
+    c: extractCadastreIds(r.scope).join(" "),
+    h: hood ? hood.name : "",
   };
 }
 

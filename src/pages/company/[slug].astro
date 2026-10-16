@@ -1,0 +1,119 @@
+---
+import Base from "../../layouts/Base.astro";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import FollowButton from "../../components/FollowButton.astro";
+import DocRow from "../../components/DocRow.astro";
+import YearBars from "../../components/YearBars.astro";
+import BarList from "../../components/BarList.astro";
+import { breadcrumbs } from "../../lib/seo";
+import { getListedCompanies, type Company } from "../../lib/companies";
+import { slugifyRegion } from "../../lib/data";
+import { classify, BUILDING_TYPES } from "../../lib/classify";
+import { countBy, yearOf } from "../../lib/stats";
+import { fmtNumber, longDate, plural } from "../../lib/format";
+
+export function getStaticPaths() {
+  return getListedCompanies().map((company) => ({ params: { slug: company.slug }, props: { company } }));
+}
+
+const { company } = Astro.props as { company: Company };
+const permits = company.docs.filter((d) => d.registerId === "permits");
+const certs = company.docs.filter((d) => d.registerId === "act16");
+const years = `${company.firstDate.slice(-4)}${company.firstDate.slice(-4) !== company.lastDate.slice(-4) ? `–${company.lastDate.slice(-4)}` : ""}`;
+const types = countBy(company.docs.map((d) => d.record), classify);
+const role = company.publicBody ? "public" : company.employerCount && company.oversightCount ? "both" : company.employerCount ? "employer" : "oversight";
+
+const title = {
+  public: `${company.display} — обекти с разрешения за строеж и Акт 16`,
+  both: `${company.display} — разрешения за строеж и Акт 16 в София`,
+  employer: `${company.display} — ${plural(permits.length, "разрешение", "разрешения")} за строеж в София`,
+  oversight: `${company.display} — строителен надзор, ${plural(certs.length, "обект", "обекта")} с Акт 16`,
+}[role];
+const summary = [
+  permits.length ? `възложител по ${plural(permits.length, "разрешение", "разрешения")} за строеж` : "",
+  certs.length ? `строителен надзор на ${plural(certs.length, "обект", "обекта")} с удостоверение за въвеждане в експлоатация (Акт 16)` : "",
+].filter(Boolean).join(" и ");
+const topRegions = company.regions.slice(0, 3).map(([r]) => r).join(", ");
+const description = `${company.display} е ${summary} в София (${years}). Райони: ${topRegions || "София"}. Пълен списък с номера, дати и обекти по данни от НАГ.`.slice(0, 300);
+
+const byYearDocs = new Map<string, typeof company.docs>();
+for (const d of company.docs) {
+  const y = yearOf(d.record);
+  byYearDocs.set(y, [...(byYearDocs.get(y) ?? []), d]);
+}
+const profile = {
+  "@context": "https://schema.org",
+  "@type": "ProfilePage",
+  url: `https://akt16.org/company/${company.slug}/`,
+  name: title,
+  mainEntity: {
+    "@type": company.publicBody ? "GovernmentOrganization" : "Organization",
+    name: company.display,
+    ...(company.publicBody ? {} : { legalName: `${company.name} ${company.form}` }),
+    areaServed: { "@type": "City", name: "София" },
+  },
+};
+---
+
+<Base title={title} description={description} structuredData={[profile, breadcrumbs([{ name: "Начало", path: "/" }, { name: "Фирми", path: "/company/" }, { name: company.display, path: Astro.url.pathname }])]}>
+  <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "Фирми", path: "/company/" }, { name: company.display }]} />
+
+  <header class="page-head company-head">
+    <div class="chip-row">
+      {company.employerCount > 0 && <span class="badge badge--permits">Възложител</span>}
+      {company.oversightCount > 0 && <span class="badge badge--act16">Строителен надзор</span>}
+      {company.publicBody && <span class="badge">Публичен орган</span>}
+    </div>
+    <h1>{company.display}</h1>
+    <p class="page-head__lead">{company.display} е {summary} в София в периода {years}.{company.regions.length > 0 && ` Най-много документи в район ${company.regions[0][0]}.`}</p>
+    <div class="page-head__actions">
+      <FollowButton kind="company" itemKey={company.slug} label={company.display} url={`/company/${company.slug}/`} />
+      <a class="btn btn--ghost btn--sm" href={`/check/?q=${encodeURIComponent(company.name)}`}>Търси във всички документи</a>
+    </div>
+  </header>
+
+  <section class="stat-grid">
+    {permits.length > 0 && <div class="stat stat--permits"><div class="stat__value">{fmtNumber(permits.length)}</div><div class="stat__label">Разрешения за строеж</div><div class="stat__sub">като възложител</div></div>}
+    {certs.length > 0 && <div class="stat stat--act16"><div class="stat__value">{fmtNumber(certs.length)}</div><div class="stat__label">Обекти с Акт 16</div><div class="stat__sub">като строителен надзор</div></div>}
+    {(permits.length === 0 || certs.length === 0) && <div class="stat"><div class="stat__value">{fmtNumber((types.get("multi") ?? 0) + (types.get("single") ?? 0))}</div><div class="stat__label">Жилищни сгради</div><div class="stat__sub">блокове и къщи</div></div>}
+    <div class="stat"><div class="stat__value">{company.regions.length}</div><div class="stat__label">Района</div><div class="stat__sub">{topRegions}</div></div>
+    <div class="stat"><div class="stat__value">{longDate(company.lastDate).replace(/^\d+ /, "")}</div><div class="stat__label">Последен документ</div><div class="stat__sub">първи: {longDate(company.firstDate)}</div></div>
+  </section>
+
+  <section class="section grid-2">
+    <div class="card">
+      <h2 class="card-title">Документи по години</h2>
+      <YearBars caption={`Документи на ${company.display} по години`} series={[
+        ...(permits.length ? [{ id: "permits" as const, label: "Разрешения за строеж", values: countBy(permits.map((d) => d.record), yearOf) }] : []),
+        ...(certs.length ? [{ id: "act16" as const, label: "Акт 16 (надзор)", values: countBy(certs.map((d) => d.record), yearOf) }] : []),
+      ]} />
+    </div>
+    <div class="card">
+      <h2 class="card-title">По райони</h2>
+      <BarList rows={company.regions.slice(0, 10).map(([name, n]) => ({ label: name, value: n, href: `/region/${slugifyRegion(name)}/` }))} />
+      <h2 class="card-title card-title--sub">Тип обекти</h2>
+      <BarList tone="yellow" rows={BUILDING_TYPES.map((t) => ({ label: t.short, title: t.label, value: types.get(t.id) ?? 0 })).filter((r) => r.value > 0).sort((a, b) => b.value - a.value).slice(0, 5)} />
+    </div>
+  </section>
+
+  <section class="section">
+    <div class="section-head"><h2>Всички документи ({fmtNumber(company.docs.length)})</h2></div>
+    {[...byYearDocs.entries()].map(([year, docs]) => (
+      <div class="year-group">
+        <h3 class="year-group__title">{year} <span class="muted">· {docs.length}</span></h3>
+        <ul class="doc-list">{docs.map((d) => <DocRow registerId={d.registerId} record={d.record} />)}</ul>
+      </div>
+    ))}
+  </section>
+
+  <p class="notice notice--info company-note">Профилът е съставен автоматично от публичните регистри на НАГ — Столична община. Akt16.org не е свързан с фирмата. Ако откриете неточност, пишете на <a href="mailto:info@akt16.org">info@akt16.org</a>.</p>
+</Base>
+
+<style>
+  .company-head h1 { font-size: clamp(1.9rem, 1.3rem + 2.6vw, 3.2rem); margin-top: 0.8rem; overflow-wrap: anywhere; }
+  .card-title { font-size: 1.3rem; margin-bottom: 1rem; }
+  .card-title--sub { margin-top: 1.5rem; font-size: 1.1rem; }
+  .year-group + .year-group { margin-top: 1.5rem; }
+  .year-group__title { font-size: 1.3rem; margin-bottom: 0.7rem; }
+  .company-note { margin-top: 2rem; }
+</style>

@@ -1,6 +1,9 @@
 ---
 import Base from "./Base.astro";
-import { breadcrumbs, canonicalUrl } from "../lib/seo";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import FaqList from "../components/FaqList.astro";
+import Icon from "../components/Icon.astro";
+import { breadcrumbs, canonicalUrl, SITE_URL } from "../lib/seo";
 
 interface Props {
   title: string;
@@ -8,19 +11,23 @@ interface Props {
   date: Date;
   updatedDate?: Date;
   tags: string[];
+  faq?: Array<{ q: string; a: string }>;
+  lang?: "bg" | "en" | "ru";
+  alternates?: Array<{ hreflang: string; href: string }>;
+  related?: Array<{ title: string; href: string }>;
 }
 
-const { title, description, date, updatedDate, tags } = Astro.props;
-
-const formattedDate = date.toLocaleDateString("bg-BG", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-});
-
+const { title, description, date, updatedDate, tags, faq = [], lang = "bg", alternates = [], related = [] } = Astro.props;
+const locale = { bg: "bg-BG", en: "en-GB", ru: "ru-RU" }[lang];
+const formattedDate = date.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
 const isoDate = date.toISOString();
+const t = {
+  bg: { home: "Начало", blog: "Ръководства", updated: "Обновено", faq: "Често задавани въпроси", check: "Проверка на имот", checkText: "Търсете по адрес, квартал или кадастрален идентификатор в двата регистъра.", all: "Всички статии", related: "Още по темата", reading: "мин. четене" },
+  en: { home: "Home", blog: "Guides", updated: "Updated", faq: "Frequently asked questions", check: "Check a property", checkText: "Search Sofia's registers by address, neighbourhood or cadastral identifier.", all: "All guides (BG)", related: "Related", reading: "min read" },
+  ru: { home: "Главная", blog: "Руководства", updated: "Обновлено", faq: "Частые вопросы", check: "Проверка объекта", checkText: "Поиск в реестрах Софии по адресу, кварталу или кадастровому идентификатору.", all: "Все статьи (BG)", related: "По теме", reading: "мин. чтения" },
+}[lang];
 
-const structuredData = {
+const article = {
   "@context": "https://schema.org",
   "@type": "BlogPosting",
   headline: title,
@@ -28,187 +35,95 @@ const structuredData = {
   datePublished: isoDate,
   dateModified: (updatedDate ?? date).toISOString(),
   mainEntityOfPage: canonicalUrl(Astro.url.pathname),
-  author: { "@type": "Organization", name: "Акт 16 Тракер" },
-  publisher: { "@type": "Organization", name: "Акт 16 Тракер" },
-  inLanguage: "bg",
+  image: `${SITE_URL}/og/default.png`,
+  author: { "@type": "Organization", name: "Акт 16 Тракер", url: `${SITE_URL}/` },
+  publisher: { "@id": `${SITE_URL}/#organization` },
+  inLanguage: lang,
   keywords: tags.join(", "),
 };
+const faqLd = faq.length
+  ? { "@context": "https://schema.org", "@type": "FAQPage", mainEntity: faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })) }
+  : null;
+const crumbs = [{ name: t.home, path: "/" }, { name: t.blog, path: "/blog/" }, { name: title, path: Astro.url.pathname }];
 ---
 
-<Base title={`${title} | Акт 16`} description={description} type="article" structuredData={[structuredData, breadcrumbs([
-  { name: "Начало", path: "/" }, { name: "Блог", path: "/blog/" }, { name: title, path: Astro.url.pathname },
-])]}>
+<Base title={`${title} | Акт 16`} description={description} type="article" lang={lang} alternates={alternates}
+  structuredData={[article, breadcrumbs(crumbs), ...(faqLd ? [faqLd] : [])]}>
+  <Breadcrumbs items={[{ name: t.home, path: "/" }, { name: t.blog, path: "/blog/" }, { name: title }]} />
 
-  <article class="blog-post">
-    <header class="blog-post__header">
-      <div class="blog-post__meta">
-        <time datetime={isoDate}>{formattedDate}</time>
-        <span class="blog-post__separator">·</span>
-        <a href="/blog/">Блог</a>
+  <div class="post-layout">
+    <article class="post">
+      <header class="post__header">
+        <div class="post__meta">
+          <time datetime={isoDate}>{formattedDate}</time>
+          {updatedDate && <span>· {t.updated}: <time datetime={updatedDate.toISOString()}>{updatedDate.toLocaleDateString(locale)}</time></span>}
+        </div>
+        <h1>{title}</h1>
+        <p class="post__lead">{description}</p>
+        <div class="chip-row post__tags">{tags.map((tag) => <span class="badge">{tag}</span>)}</div>
+      </header>
+
+      <div class="prose post__content">
+        <slot />
       </div>
-      {updatedDate && <p>Обновено: <time datetime={updatedDate.toISOString()}>{updatedDate.toLocaleDateString("bg-BG")}</time></p>}
-      <h1 class="blog-post__title">{title}</h1>
-      <p class="blog-post__description">{description}</p>
-      <div class="blog-post__tags">
-        {tags.map((tag) => <span class="blog-tag">{tag}</span>)}
+
+      {faq.length > 0 && (
+        <section class="post__faq" aria-labelledby="faq-title">
+          <h2 id="faq-title">{t.faq}</h2>
+          <FaqList items={faq} />
+        </section>
+      )}
+
+      <footer class="post__footer">
+        <a href="/blog/"><Icon name="back" size={16} /> {t.all}</a>
+      </footer>
+    </article>
+
+    <aside class="post-aside">
+      <div class="panel-dark blueprint aside-cta">
+        <Icon name="search" size={26} />
+        <h2>{t.check}</h2>
+        <p>{t.checkText}</p>
+        <form action="/check/" method="get" role="search">
+          <label class="sr-only" for="aside-q">{t.check}</label>
+          <input id="aside-q" name="q" type="search" placeholder="68134.… / ул. …" />
+          <button class="btn btn--primary" type="submit">{lang === "bg" ? "Провери" : lang === "ru" ? "Проверить" : "Check"}</button>
+        </form>
       </div>
-    </header>
-
-    <div class="blog-post__content">
-      <slot />
-    </div>
-
-    <footer class="blog-post__footer">
-      <p><a href="/register/act16/">Проверка за Акт 16 в София</a> · <a href="/register/permits/">Регистър на разрешенията за строеж</a></p>
-      <a href="/blog/">&larr; Всички статии</a>
-    </footer>
-  </article>
+      <nav class="card aside-links" aria-label={t.related}>
+        <h2>{t.related}</h2>
+        {related.length > 0
+          ? related.map((r) => <a href={r.href}>{r.title}</a>)
+          : <>
+              <a href="/register/act16/">Регистър Акт 16</a>
+              <a href="/register/permits/">Регистър на разрешенията за строеж</a>
+              <a href="/map/">Карта на строителството</a>
+              <a href="/stats/">Статистика</a>
+            </>}
+      </nav>
+    </aside>
+  </div>
 </Base>
 
 <style>
-  .blog-post {
-    max-width: 740px;
-    margin: 0 auto;
-  }
-
-  .blog-post__header {
-    margin-bottom: 2.5rem;
-    padding-bottom: 1.5rem;
-    border-bottom: 1px solid var(--color-border-light);
-  }
-
-  .blog-post__meta {
-    font-size: 0.8rem;
-    color: var(--color-text-muted);
-    margin-bottom: 0.85rem;
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    font-weight: 600;
-  }
-
-  .blog-post__separator {
-    color: var(--color-border);
-  }
-
-  .blog-post__title {
-    font-size: 2.1rem;
-    font-weight: 800;
-    line-height: 1.2;
-    letter-spacing: -0.03em;
-    margin-bottom: 0.85rem;
-  }
-
-  .blog-post__description {
-    font-size: 1.1rem;
-    color: var(--color-text-muted);
-    line-height: 1.7;
-    font-weight: 500;
-  }
-
-  .blog-post__tags {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-    margin-top: 1.15rem;
-  }
-
-  .blog-tag {
-    display: inline-block;
-    padding: 0.25rem 0.7rem;
-    background: var(--color-primary-light);
-    color: var(--color-primary);
-    border-radius: var(--radius-full);
-    font-size: 0.73rem;
-    font-weight: 600;
-  }
-
-  .blog-post__content {
-    font-size: 1.02rem;
-    line-height: 1.85;
-    color: var(--color-text);
-  }
-
-  .blog-post__content :global(h2) {
-    font-size: 1.4rem;
-    font-weight: 800;
-    margin: 2.25rem 0 0.75rem;
-    letter-spacing: -0.02em;
-  }
-
-  .blog-post__content :global(h3) {
-    font-size: 1.15rem;
-    font-weight: 700;
-    margin: 1.75rem 0 0.5rem;
-  }
-
-  .blog-post__content :global(p) {
-    margin-bottom: 1.25rem;
-  }
-
-  .blog-post__content :global(ul),
-  .blog-post__content :global(ol) {
-    margin-bottom: 1.25rem;
-    padding-left: 1.5rem;
-  }
-
-  .blog-post__content :global(li) {
-    margin-bottom: 0.45rem;
-  }
-
-  .blog-post__content :global(strong) {
-    font-weight: 700;
-    color: var(--color-text);
-  }
-
-  .blog-post__content :global(a) {
-    color: var(--color-primary);
-    text-decoration: underline;
-    text-underline-offset: 3px;
-    text-decoration-color: rgba(124, 58, 237, 0.3);
-    transition: text-decoration-color var(--transition);
-  }
-
-  .blog-post__content :global(a:hover) {
-    text-decoration-color: var(--color-primary);
-  }
-
-  .blog-post__content :global(table) {
-    margin: 1.5rem 0;
-    font-size: 0.875rem;
-    border-radius: var(--radius);
-    overflow: hidden;
-  }
-
-  .blog-post__content :global(blockquote) {
-    margin: 1.5rem 0;
-    padding: 1.15rem 1.35rem;
-    border-left: 4px solid;
-    border-image: linear-gradient(to bottom, var(--color-primary), var(--color-accent)) 1;
-    background: var(--color-primary-light);
-    border-radius: 0 var(--radius) var(--radius) 0;
-    color: var(--color-text-muted);
-    font-weight: 500;
-  }
-
-  .blog-post__content :global(h1) {
-    display: none;
-  }
-
-  .blog-post__footer {
-    margin-top: 3rem;
-    padding-top: 1.5rem;
-    border-top: 1px solid var(--color-border-light);
-    font-size: 0.9rem;
-    font-weight: 600;
-  }
-
-  @media (max-width: 640px) {
-    .blog-post__title { font-size: 1.4rem; }
-    .blog-post__description { font-size: 0.95rem; }
-    .blog-post__content { font-size: 0.95rem; line-height: 1.75; }
-    .blog-post__content :global(h2) { font-size: 1.2rem; }
-    .blog-post__content :global(h3) { font-size: 1.05rem; }
-    .blog-post__content :global(table) { display: block; overflow-x: auto; }
-  }
+  .post-layout { display: grid; gap: 2rem; }
+  @media (min-width: 1080px) { .post-layout { grid-template-columns: minmax(0, 740px) 1fr; gap: 3.5rem; } }
+  .post__header { padding: 1rem 0 1.5rem; border-bottom: 2px solid var(--ink); margin-bottom: 2rem; }
+  .post__meta { font-size: 0.88rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.35rem; font-weight: 600; }
+  .post h1 { margin-top: 0.75rem; font-size: clamp(2rem, 1.4rem + 2.4vw, 3.2rem); }
+  .post__lead { margin-top: 1rem; font-size: 1.15rem; color: var(--muted); }
+  .post__tags { margin-top: 1rem; }
+  .post__faq { margin-top: 3rem; }
+  .post__faq h2 { margin-bottom: 1rem; }
+  .post__footer { margin-top: 2.5rem; padding-top: 1.25rem; border-top: 1px solid var(--line); }
+  .post__footer a { display: inline-flex; align-items: center; gap: 0.4rem; font-weight: 700; }
+  .post-aside { display: grid; gap: 1rem; align-content: start; }
+  @media (min-width: 1080px) { .post-aside { position: sticky; top: 92px; } }
+  .aside-cta { padding: 1.4rem; display: grid; gap: 0.7rem; color: var(--yellow); }
+  .aside-cta h2 { font-size: 1.4rem; text-transform: uppercase; }
+  .aside-cta form { display: grid; gap: 0.5rem; }
+  .aside-cta input { background: rgba(255, 255, 255, 0.08); border-color: var(--asphalt-line); color: #fff; }
+  .aside-links { display: grid; gap: 0.5rem; }
+  .aside-links h2 { font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.05em; }
+  .aside-links a { font-weight: 600; }
 </style>

@@ -1,435 +1,370 @@
 ---
 import Base from "../layouts/Base.astro";
-import {
-  getRegister,
-  getDistrictCounts,
-  getCombinedStats,
-  slugifyRegion,
-  getAllRegionsWithSlugs,
-} from "../lib/data";
+import Icon from "../components/Icon.astro";
+import RecordCard from "../components/RecordCard.astro";
+import SofiaMap from "../components/SofiaMap.astro";
+import BarList from "../components/BarList.astro";
+import FaqList from "../components/FaqList.astro";
+import { getRegister, getCombinedStats, getAllRegionsWithSlugs, recordSlug } from "../lib/data";
+import { topCompanies, getListedCompanies } from "../lib/companies";
+import { getListedNeighborhoods } from "../lib/places";
+import { classify, isNewApartmentBuilding } from "../lib/classify";
+import { pipelineMatches, durationStats } from "../lib/parcels";
+import { inLastDays, sortByDateDesc } from "../lib/stats";
+import { fmtNumber, fmtMonths, truncate, sentenceCase, longDate } from "../lib/format";
 import { getCollection } from "astro:content";
 
 const act16 = getRegister("act16");
 const permits = getRegister("permits");
 const stats = getCombinedStats();
+const regions = getAllRegionsWithSlugs();
 
-const RECENT_POSTS_COUNT = 3;
-const recentPosts = (await getCollection("blog"))
-  .sort((a, b) => b.data.date.getTime() - a.data.date.getTime())
-  .slice(0, RECENT_POSTS_COUNT);
+const recentAct16 = act16.records.slice(0, 3);
+const recentPermits = permits.records.slice(0, 3);
+const month = { act16: inLastDays(act16.records, 30).length, permits: inLastDays(permits.records, 30).length };
 
-const act16Districts = [...getDistrictCounts("act16").entries()]
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 6);
+const matches = pipelineMatches();
+const allDur = durationStats(matches);
+const multiDur = durationStats(matches.filter((m) => isNewApartmentBuilding(m.certificate)));
 
-const permitsDistricts = [...getDistrictCounts("permits").entries()]
-  .sort((a, b) => b[1] - a[1])
-  .slice(0, 6);
+const newBuildings = sortByDateDesc(act16.records.filter(isNewApartmentBuilding)).slice(0, 6);
+const totals = new Map(regions.map((r) => [r.name, r.act16 + r.permits]));
+const topEmployers = topCompanies("employer", 6, new Date().getFullYear() - 1);
+const topOversight = topCompanies("oversight", 6, new Date().getFullYear() - 1);
+const companyCount = getListedCompanies().length;
+const neighborhoods = getListedNeighborhoods().slice(0, 18);
 
-const recentAct16 = act16.records.slice(0, 4);
-const recentPermits = permits.records.slice(0, 4);
+const featuredSlugs = ["kakvo-e-akt-16", "proverka-akt-16-online", "akt-16-obrazets", "ot-razreshenie-do-akt-16", "razreshenie-za-stroezh", "akt-16-za-kashta"];
+const posts = await getCollection("blog");
+const featured = featuredSlugs.map((slug) => posts.find((p) => p.id === slug)).filter((p) => !!p).slice(0, 4);
 
-const updatedDate = new Date(stats.lastUpdated).toLocaleDateString("bg-BG", {
-  day: "numeric",
-  month: "long",
-  year: "numeric",
-  hour: "2-digit",
-  minute: "2-digit",
-});
+const updated = new Date(stats.lastUpdated);
+const updatedLabel = updated.toLocaleString("bg-BG", { day: "numeric", month: "long", year: "numeric", hour: "2-digit", minute: "2-digit", timeZone: "Europe/Sofia" });
+
+const faq = [
+  { q: "Как да проверя дали жилище има Акт 16?", a: "Въведете адреса, кадастралния идентификатор или номера на документа в търсачката „Проверка на имот“. Ще видите всички разрешения за строеж и удостоверения за същия имот. Потвърдете намерения документ в официалния регистър на НАГ или при издалия го орган." },
+  { q: "Какво означава Акт 16?", a: "В обявите „Акт 16“ обикновено означава, че сградата е въведена в експлоатация. Точният документ зависи от категорията на строежа: разрешение за ползване от ДНСК (I–III категория) или удостоверение за въвеждане в експлоатация от общината (IV–V категория)." },
+  { q: "Кой издава Акт 16?", a: "Протокол образец 16 се съставя от държавна приемателна комисия. Разрешението за ползване се издава от ДНСК, а удостоверението за въвеждане в експлоатация — от органа, издал разрешението за строеж, обикновено главният архитект на общината или района." },
+  { q: "Колко време минава от разрешение за строеж до Акт 16?", a: `По данните в сайта медианата е около ${fmtMonths(allDur.median)} за всички строежи и около ${fmtMonths(multiDur.median)} за многофамилни жилищни сгради. Сроковете варират силно според обекта.` },
+  { q: "Колко често се обновяват данните?", a: "Данните се събират автоматично всеки ден от публичните регистри на Направление „Архитектура и градоустройство“ на Столична община." },
+  { q: "Липсата на резултат означава ли, че сградата няма Акт 16?", a: "Не. Възможно е различно изписване на адреса, документ от ДНСК, по-стар запис или документ за отделен етап. Поискайте номер, дата и копие на документа и проверете в официалния регистър." },
+];
+const faqLd = {
+  "@context": "https://schema.org",
+  "@type": "FAQPage",
+  mainEntity: faq.map((f) => ({ "@type": "Question", name: f.q, acceptedAnswer: { "@type": "Answer", text: f.a } })),
+};
 ---
 
-<Base title="Акт 16 — проверка по адрес и регистър за София" description="Проверка за Акт 16 на жилище в София: търсете по адрес, район, номер или кадастрален идентификатор. Удостоверения и разрешения за строеж с данни от НАГ.">
-  <section class="hero">
-    <h1>Акт 16 — проверка и регистър за София</h1>
-    <p class="hero__subtitle">
-      Проверете за удостоверение за въвеждане в експлоатация на жилище или сграда
-      в София. Търсете по адрес, район, номер или кадастрален идентификатор в данните от
-      <a href="https://nag.sofia.bg" target="_blank" rel="noopener">НАГ</a>.
-    </p>
-    <form action="/register/act16/" method="get" class="hero-search" role="search">
-      <label for="home-search">Адрес, номер на документ или идентификатор КККР</label>
-      <div class="hero-search__row">
-        <input id="home-search" name="q" type="search" placeholder="Напр. ул. Сердика или 68134…" />
-        <button class="btn" type="submit">Провери Акт 16</button>
+<Base
+  title="Акт 16 — проверка на жилище по адрес | Регистър София"
+  description="Проверка за Акт 16 на жилище в София: търсете по адрес, район, номер или кадастрален идентификатор. Удостоверения, разрешения за строеж и карта с данни от НАГ."
+  structuredData={[faqLd]}
+>
+  <section class="hero panel-dark blueprint">
+    <div class="hero__grid">
+      <div class="hero__copy">
+        <span class="eyebrow hero__eyebrow">Публични регистри · София</span>
+        <h1>Акт 16 — проверка и регистър за София</h1>
+        <p class="hero__lead">
+          Проверете за удостоверение за въвеждане в експлоатация на жилище или сграда в София.
+          Търсете по адрес, район, номер или кадастрален идентификатор в данните от
+          <a href="https://nag.sofia.bg" target="_blank" rel="noopener">НАГ</a> — заедно с разрешенията за строеж за същия имот.
+        </p>
+        <form action="/check/" method="get" class="hero__search" role="search">
+          <label for="home-search" class="sr-only">Адрес, номер на документ или идентификатор КККР</label>
+          <div class="searchbar">
+            <input id="home-search" name="q" type="search" placeholder="Адрес, квартал, фирма или 68134.…" autocomplete="off" />
+            <button class="btn btn--primary" type="submit"><Icon name="search" /> Провери</button>
+          </div>
+        </form>
+        <p class="hero__examples">
+          Пример: <a href="/check/?q=Манастирски%20ливади">Манастирски ливади</a> · <a href="/check/?q=%D0%9A%D1%80%D1%8A%D1%81%D1%82%D0%BE%D0%B2%D0%B0%20%D0%B2%D0%B0%D0%B4%D0%B0">Кръстова вада</a> · <a href="/check/?q=68134.4082">68134.4082</a>
+        </p>
+        <p class="hero__links"><a href="/register/act16/">Всички удостоверения</a> · <a href="/register/permits/">Разрешения за строеж</a> · <a href="/blog/proverka-akt-16-online/">Как се прави проверката?</a></p>
       </div>
-    </form>
-    <p class="hero-links"><a href="/register/act16/">Всички удостоверения</a> · <a href="/register/permits/">Разрешения за строеж</a> · <a href="/blog/proverka-akt-16-online/">Как се прави проверката?</a></p>
-    <p class="hero__updated">Последна актуализация: {updatedDate}</p>
-  </section>
 
-  <section class="stat-grid" style="margin-top: 2rem;">
-    <div class="card stat-card">
-      <div class="value">{stats.totalAct16}</div>
-      <div class="label">Удостоверения (Акт 16)</div>
-    </div>
-    <div class="card stat-card">
-      <div class="value">{stats.totalPermits}</div>
-      <div class="label">Разрешения за строеж</div>
-    </div>
-    <div class="card stat-card">
-      <div class="value">{stats.totalDistricts}</div>
-      <div class="label">Района в София</div>
-    </div>
-    <div class="card stat-card">
-      <div class="value">{act16Districts[0]?.[0] ?? "—"}</div>
-      <div class="label">Най-активен район (Акт 16)</div>
-    </div>
-  </section>
-
-  <!-- Act 16 Section -->
-  <section class="section" style="margin-top: 2.5rem;">
-    <div class="section-header">
-      <h2>Акт 16 — по район</h2>
-      <a href="/register/act16/">Виж всички &rarr;</a>
-    </div>
-    <div class="district-grid">
-      {act16Districts.map(([name, count]) => (
-        <a href={`/region/${slugifyRegion(name)}/`} class="district-chip">
-          <span class="district-chip__name">{name}</span>
-          <span class="district-chip__count">{count}</span>
-        </a>
-      ))}
+      <aside class="live card" aria-labelledby="live-title">
+        <div class="live__head">
+          <span class="live__dot" aria-hidden="true"></span>
+          <h2 id="live-title">На живо от регистрите</h2>
+        </div>
+        <p class="live__updated">Последна актуализация: <time datetime={updated.toISOString()}>{updatedLabel}</time></p>
+        <dl class="live__stats">
+          <div><dt>Акт 16 за 30 дни</dt><dd class="mono">+{fmtNumber(month.act16)}</dd></div>
+          <div><dt>Разрешения за 30 дни</dt><dd class="mono">+{fmtNumber(month.permits)}</dd></div>
+        </dl>
+        <ul class="live__list">
+          {[...recentAct16.slice(0, 2).map((r) => ["act16", r] as const), ...recentPermits.slice(0, 2).map((r) => ["permits", r] as const)].map(([id, r]) => (
+            <li>
+              <a href={`/register/${id}/${recordSlug(r)}/`}>
+                <span class:list={["dot", `dot--${id}`]} aria-hidden="true"></span>
+                <span class="live__item">
+                  <span><strong>{id === "act16" ? "Акт 16" : "Разрешение"} № {r.number}</strong> · {r.region || "София"}</span>
+                  <small>{truncate(sentenceCase(r.object), 70)}</small>
+                </span>
+              </a>
+            </li>
+          ))}
+        </ul>
+        <a class="btn btn--ghost btn--sm" href="/rss.xml"><Icon name="rss" size={15} /> Абонамент (RSS)</a>
+      </aside>
     </div>
   </section>
 
-  <section class="section" style="margin-top: 1.5rem;">
-    <div class="section-header">
-      <h2>Последни Акт 16</h2>
-      <a href="/register/act16/">Виж всички &rarr;</a>
-    </div>
-    <div class="recent-grid">
-      {recentAct16.map((r) => {
-        const slug = `${r.number}-${r.date.replace(/\./g, "")}`;
-        return (
-          <a href={`/register/act16/${slug}/`} class="card recent-card">
-            <div class="recent-card__header">
-              <span class="recent-card__number">№ {r.number}</span>
-              <span class="recent-card__date">{r.date}</span>
-            </div>
-            <p class="recent-card__object">{r.object.slice(0, 140)}{r.object.length > 140 ? "..." : ""}</p>
-            <div class="recent-card__footer">
-              {r.region && <span class="badge badge--district">{r.region}</span>}
-              {r.constructionOversight && (
-                <span class="recent-card__meta">{r.constructionOversight}</span>
-              )}
-            </div>
-          </a>
-        );
-      })}
-    </div>
+  <section class="stat-grid home-stats" aria-label="Обобщение">
+    <div class="stat stat--act16"><div class="stat__value">{fmtNumber(stats.totalAct16)}</div><div class="stat__label">Удостоверения (Акт 16)</div><div class="stat__sub">последен: {longDate(act16.records[0].date)}</div></div>
+    <div class="stat stat--permits"><div class="stat__value">{fmtNumber(stats.totalPermits)}</div><div class="stat__label">Разрешения за строеж</div><div class="stat__sub">последно: {longDate(permits.records[0].date)}</div></div>
+    <div class="stat"><div class="stat__value">{fmtNumber(companyCount)}</div><div class="stat__label">Фирми и възложители</div><div class="stat__sub">инвеститори и строителен надзор</div></div>
+    <div class="stat"><div class="stat__value">{fmtMonths(allDur.median)}</div><div class="stat__label">От разрешение до Акт 16</div><div class="stat__sub">медиана за {fmtNumber(allDur.count)} имота</div></div>
   </section>
 
-  <!-- Permits Section -->
-  <section class="section" style="margin-top: 2.5rem;">
-    <div class="section-header">
-      <h2>Разрешения за строеж — по район</h2>
-      <a href="/register/permits/">Виж всички &rarr;</a>
+  <section class="section pipeline" aria-labelledby="pipeline-title">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">Жизнен цикъл на строежа</span>
+        <h2 id="pipeline-title">От разрешение за строеж до Акт 16</h2>
+        <p>Свързваме документите по кадастрален идентификатор, за да видите историята на всеки имот — от разрешението до въвеждането в експлоатация.</p>
+      </div>
+      <a class="section-head__link" href="/blog/ot-razreshenie-do-akt-16/">Колко време отнема <Icon name="arrow" size={16} /></a>
     </div>
-    <div class="district-grid">
-      {permitsDistricts.map(([name, count]) => (
-        <a href={`/region/${slugifyRegion(name)}/`} class="district-chip district-chip--accent">
-          <span class="district-chip__name">{name}</span>
-          <span class="district-chip__count">{count}</span>
-        </a>
-      ))}
-    </div>
-  </section>
-
-  <section class="section" style="margin-top: 1.5rem;">
-    <div class="section-header">
-      <h2>Последни разрешения за строеж</h2>
-      <a href="/register/permits/">Виж всички &rarr;</a>
-    </div>
-    <div class="recent-grid">
-      {recentPermits.map((r) => {
-        const slug = `${r.number}-${r.date.replace(/\./g, "")}`;
-        return (
-          <a href={`/register/permits/${slug}/`} class="card recent-card">
-            <div class="recent-card__header">
-              <span class="recent-card__number">№ {r.number}</span>
-              <span class="recent-card__date">{r.date}</span>
-            </div>
-            <p class="recent-card__object">{r.object.slice(0, 140)}{r.object.length > 140 ? "..." : ""}</p>
-            <div class="recent-card__footer">
-              {r.region && <span class="badge badge--district">{r.region}</span>}
-              {r.employer && (
-                <span class="recent-card__meta">{r.employer}</span>
-              )}
-            </div>
-          </a>
-        );
-      })}
-    </div>
-  </section>
-
-  <!-- Blog Section -->
-  <section class="section search-help">
-    <h2>Как да проверя дали жилище има Акт 16?</h2>
-    <ol>
-      <li>Потърсете улицата или кадастралния идентификатор в <a href="/register/act16/">регистъра на удостоверенията</a>.</li>
-      <li>Изберете район и отворете съответния документ. Сравнете описанието на строежа и местоположението.</li>
-      <li>Потвърдете документа и неговия обхват в официалния регистър или при издалия го орган.</li>
+    <ol class="pipeline__steps">
+      <li class="pipeline__step pipeline__step--permits">
+        <span class="pipeline__num">01</span>
+        <h3>Разрешение за строеж</h3>
+        <p>Издава се от главния архитект на общината или района. Показва какво е разрешено да се строи.</p>
+        <a href="/register/permits/" class="pipeline__count"><b class="mono">{fmtNumber(stats.totalPermits)}</b> разрешения</a>
+      </li>
+      <li class="pipeline__step">
+        <span class="pipeline__num">02</span>
+        <h3>Строителство · Акт 14 и 15</h3>
+        <p>Груб строеж (Акт 14), приемане на строежа (Акт 15). Тези актове не са в публичните регистри.</p>
+        <a href="/blog/etapi-na-stroitelstvo-akt-14-15-16/" class="pipeline__count"><b class="mono">{fmtMonths(multiDur.median)}</b> медиана за жилищни блокове</a>
+      </li>
+      <li class="pipeline__step pipeline__step--act16">
+        <span class="pipeline__num">03</span>
+        <h3>Акт 16 · въвеждане в експлоатация</h3>
+        <p>Удостоверение от общината (IV–V категория) или разрешение за ползване от ДНСК (I–III).</p>
+        <a href="/register/act16/" class="pipeline__count"><b class="mono">{fmtNumber(stats.totalAct16)}</b> удостоверения</a>
+      </li>
     </ol>
-    <p>Липсата на резултат тук не доказва, че сградата няма документ за въвеждане в експлоатация. Проверете и <a href="https://dnsk.bg/registri/publichen-registar-na-razresheniyata-za-polzvane-izdadeni-ot-dnsk/">регистъра на разрешенията за ползване на ДНСК</a>, когато е приложим.</p>
-    <h2>Какво означава Акт 16?</h2>
-    <p>В обявите „Акт 16“ обикновено означава, че сградата е въведена в експлоатация. Точният документ зависи от категорията на строежа. <a href="/blog/kakvo-e-akt-16/">Вижте разликата между протокол №16, разрешение за ползване и удостоверение за въвеждане в експлоатация.</a></p>
-    <h2>Проверка по район в София</h2>
-    <div class="district-grid">
-      {getAllRegionsWithSlugs().map(({ name, slug }) => <a class="district-chip" href={`/region/${slug}/`}>{name}</a>)}
+  </section>
+
+  <section class="section" aria-labelledby="latest-title">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">Нови документи</span>
+        <h2 id="latest-title">Последни Акт 16 и разрешения за строеж</h2>
+      </div>
+      <a class="section-head__link" href="/register/act16/">Всички документи <Icon name="arrow" size={16} /></a>
+    </div>
+    <div class="grid-2">
+      <div class="latest-col">
+        <h3 class="latest-col__title"><span class="dot dot--act16"></span> Последни Акт 16</h3>
+        <div class="latest-col__list">{recentAct16.map((r) => <RecordCard registerId="act16" record={r} headingLevel="h4" />)}</div>
+      </div>
+      <div class="latest-col">
+        <h3 class="latest-col__title"><span class="dot dot--permits"></span> Последни разрешения за строеж</h3>
+        <div class="latest-col__list">{recentPermits.map((r) => <RecordCard registerId="permits" record={r} headingLevel="h4" />)}</div>
+      </div>
     </div>
   </section>
-  <section class="section" style="margin-top: 2.5rem;">
-    <div class="section-header">
-      <h2>От блога</h2>
-      <a href="/blog/">Всички статии &rarr;</a>
+
+  <section class="section map-teaser card" aria-labelledby="map-title">
+    <div class="map-teaser__copy">
+      <span class="eyebrow">Карта</span>
+      <h2 id="map-title">Строителството в София по райони</h2>
+      <p>Размерът на кръга показва броя на документите в района от 2021 г. насам. Отворете интерактивната карта, за да видите отделните обекти, филтри по година и тип сграда.</p>
+      <div class="page-head__actions">
+        <a class="btn btn--primary" href="/map/"><Icon name="map" /> Отвори картата</a>
+        <a class="btn btn--ghost" href="/region/">Всички райони</a>
+      </div>
     </div>
-    <div class="blog-grid">
-      {recentPosts.map((post) => {
-        const formattedDate = post.data.date.toLocaleDateString("bg-BG", {
-          day: "numeric",
-          month: "long",
-          year: "numeric",
-        });
-        return (
-          <a href={`/blog/${post.id}/`} class="card blog-home-card">
-            <time class="blog-home-card__date" datetime={post.data.date.toISOString()}>
-              {formattedDate}
-            </time>
-            <h3 class="blog-home-card__title">{post.data.title}</h3>
-            <p class="blog-home-card__desc">{post.data.description.slice(0, 120)}...</p>
+    <SofiaMap counts={totals} caption="Брой документи по район в София" />
+  </section>
+
+  <section class="section" aria-labelledby="new-buildings-title">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">За купувачи</span>
+        <h2 id="new-buildings-title">Нови жилищни сгради с Акт 16</h2>
+        <p>Наскоро въведени в експлоатация многофамилни жилищни сгради в София.</p>
+      </div>
+      <a class="section-head__link" href="/new-buildings/">Всички нови сгради <Icon name="arrow" size={16} /></a>
+    </div>
+    <div class="grid-auto">{newBuildings.map((r) => <RecordCard registerId="act16" record={r} />)}</div>
+  </section>
+
+  <section class="section" aria-labelledby="regions-title">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">24 района</span>
+        <h2 id="regions-title">Проверка по район в София</h2>
+      </div>
+      <a class="section-head__link" href="/neighborhood/">Квартали и села <Icon name="arrow" size={16} /></a>
+    </div>
+    <ul class="district-grid">
+      {regions.map((r) => (
+        <li>
+          <a class="district" href={`/region/${r.slug}/`}>
+            <span class="district__name">{r.name}</span>
+            <span class="district__nums"><span class="badge badge--act16">{fmtNumber(r.act16)}</span><span class="badge badge--permits">{fmtNumber(r.permits)}</span></span>
           </a>
-        );
-      })}
+        </li>
+      ))}
+    </ul>
+    <p class="legend-note"><span class="badge badge--act16">Акт 16</span> <span class="badge badge--permits">Разрешения</span> — брой документи в района.</p>
+    <div class="chip-row neighborhood-chips">
+      {neighborhoods.map((n) => <a class="chip" href={`/neighborhood/${n.slug}/`}>{n.kind === "с." ? `с. ${n.name}` : n.name} <span class="chip__count">{n.total}</span></a>)}
+    </div>
+  </section>
+
+  <section class="section grid-2" aria-label="Най-активни фирми">
+    <div class="card">
+      <span class="eyebrow">От {new Date().getFullYear() - 1} г. насам</span>
+      <h2 class="card-title">Най-активни възложители</h2>
+      <BarList tone="permits" rows={topEmployers.map(({ company, count }) => ({ label: company.display, value: count, href: `/company/${company.slug}/` }))} />
+      <a class="section-head__link card-link" href="/company/">Каталог на фирмите <Icon name="arrow" size={16} /></a>
+    </div>
+    <div class="card">
+      <span class="eyebrow">От {new Date().getFullYear() - 1} г. насам</span>
+      <h2 class="card-title">Най-активен строителен надзор</h2>
+      <BarList tone="act16" rows={topOversight.map(({ company, count }) => ({ label: company.display, value: count, href: `/company/${company.slug}/` }))} />
+      <a class="section-head__link card-link" href="/company/#nadzor">Всички фирми за надзор <Icon name="arrow" size={16} /></a>
+    </div>
+  </section>
+
+  <section class="section search-help" aria-labelledby="howto-title">
+    <div class="search-help__main">
+      <span class="eyebrow">Ръководство</span>
+      <h2 id="howto-title">Как да проверя дали жилище има Акт 16?</h2>
+      <ol class="steps">
+        <li><b>Потърсете адреса или идентификатора.</b> Въведете улицата или кадастралния идентификатор в <a href="/check/">проверката на имот</a> или в <a href="/register/act16/">регистъра на удостоверенията</a>.</li>
+        <li><b>Сравнете обекта.</b> Отворете документа и сравнете описанието на строежа, района и местоположението.</li>
+        <li><b>Потвърдете официално.</b> Проверете документа и неговия обхват в официалния регистър или при издалия го орган.</li>
+      </ol>
+      <p class="notice">Липсата на резултат тук не доказва, че сградата няма документ за въвеждане в експлоатация. Проверете и <a href="https://dnsk.bg/registri/publichen-registar-na-razresheniyata-za-polzvane-izdadeni-ot-dnsk/">регистъра на разрешенията за ползване на ДНСК</a>, когато е приложим.</p>
+      <h2>Какво означава Акт 16?</h2>
+      <p>В обявите „Акт 16“ обикновено означава, че сградата е въведена в експлоатация. Точният документ зависи от категорията на строежа. <a href="/blog/kakvo-e-akt-16/">Вижте разликата между протокол №16, разрешение за ползване и удостоверение за въвеждане в експлоатация.</a></p>
+    </div>
+    <div class="search-help__faq">
+      <h2>Често задавани въпроси</h2>
+      <FaqList items={faq} open />
+    </div>
+  </section>
+
+  <section class="section" aria-labelledby="guides-title">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">Ръководства</span>
+        <h2 id="guides-title">Акт 14, 15, 16 и разрешения — обяснено просто</h2>
+      </div>
+      <a class="section-head__link" href="/blog/">Всички статии <Icon name="arrow" size={16} /></a>
+    </div>
+    <div class="grid-auto">
+      {featured.map((post) => (
+        <a href={`/blog/${post.id}/`} class="card guide-card">
+          <Icon name="doc" size={22} />
+          <h3>{post.data.title}</h3>
+          <p>{truncate(post.data.description, 130)}</p>
+        </a>
+      ))}
+    </div>
+  </section>
+
+  <section class="section cta panel-dark blueprint">
+    <div>
+      <span class="eyebrow">Безплатен профил</span>
+      <h2>Следете район, фирма или имот</h2>
+      <p>Запазете обекти в „Следени“ и вижте какво е ново при следващото ви посещение — нови разрешения в квартала, нов Акт 16 на сградата, нови проекти на инвеститора.</p>
+    </div>
+    <div class="cta__actions">
+      <a class="btn btn--primary" href="/account/?mode=register">Създай профил</a>
+      <a class="btn btn--ghost" href="/data/"><Icon name="download" /> Отворени данни</a>
     </div>
   </section>
 </Base>
 
 <style>
-  .hero-search { max-width: 680px; margin: 1.5rem auto; text-align: left; }
-  .hero-search label { display: block; font-weight: 600; margin-bottom: .5rem; }
-  .hero-search__row { display: flex; gap: .5rem; }
-  .hero-search input { flex: 1; min-width: 0; padding: .85rem; border: 1px solid var(--color-border); border-radius: var(--radius); background: var(--color-surface); color: var(--color-text); }
-  .hero-search button { flex-shrink: 0; padding: .85rem 1.2rem; border: 0; border-radius: var(--radius); background: var(--color-primary); color: white; font: inherit; font-weight: 700; cursor: pointer; }
-  .hero-search button:hover { filter: brightness(1.1); }
-  .hero-search :is(input, button):focus-visible { outline: 2px solid var(--color-primary); outline-offset: 3px; }
-  .hero-links { font-size: .9rem; line-height: 1.8; }
-  .search-help { margin-top: 2.5rem; }
-  .search-help h2 { margin: 1.75rem 0 .75rem; font-size: 1.35rem; }
-  .search-help ol { padding-left: 1.5rem; margin-bottom: 1rem; }
-  .search-help li { margin: .5rem 0; }
-  @media (max-width: 480px) { .hero-search__row { flex-direction: column; } }
-  .hero {
-    text-align: center;
-    padding: 1.5rem 0 1rem;
+  .hero { margin-top: 0.5rem; padding: clamp(1.4rem, 1rem + 3vw, 3.5rem) clamp(1.1rem, 0.6rem + 3vw, 3rem); }
+  .hero__grid { display: grid; gap: 2rem; align-items: start; }
+  @media (min-width: 1000px) { .hero__grid { grid-template-columns: minmax(0, 1.5fr) minmax(320px, 1fr); gap: 3rem; } }
+  .hero__eyebrow { color: var(--yellow); }
+  .hero h1 { font-size: clamp(2.3rem, 1.5rem + 3.6vw, 4.4rem); text-transform: uppercase; letter-spacing: -0.01em; margin-top: 0.8rem; line-height: 0.98; }
+  .hero__lead { margin-top: 1rem; font-size: clamp(1rem, 0.95rem + 0.3vw, 1.15rem); max-width: 640px; color: #c9ced6 !important; }
+  .hero__search { margin-top: 1.6rem; max-width: 680px; }
+  .hero__examples, .hero__links { margin-top: 1rem; font-size: 0.92rem; }
+  .hero__examples { color: var(--asphalt-muted); }
+  .hero__links a { font-weight: 700; }
+
+  .live { min-width: 0; background: rgba(255, 255, 255, 0.04); border-color: var(--asphalt-line); color: var(--asphalt-text); box-shadow: none; }
+  .live__head { display: flex; align-items: center; gap: 0.6rem; }
+  .live__head h2 { font-size: 1.15rem; text-transform: uppercase; letter-spacing: 0.06em; }
+  .live__dot { width: 10px; height: 10px; border-radius: 50%; background: #3ccb88; box-shadow: 0 0 0 4px rgba(60, 203, 136, 0.25); animation: blink 2s infinite; }
+  @keyframes blink { 50% { opacity: 0.35; } }
+  .live__updated { font-size: 0.82rem; margin-top: 0.35rem; }
+  .live__stats { display: grid; grid-template-columns: 1fr 1fr; gap: 0.6rem; margin: 1rem 0; }
+  .live__stats div { background: rgba(255, 255, 255, 0.05); border-radius: var(--radius); padding: 0.6rem 0.75rem; }
+  .live__stats dt { font-size: 0.75rem; color: var(--asphalt-muted); }
+  .live__stats dd { font-size: 1.5rem; font-weight: 700; color: var(--yellow); }
+  .live__list { list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 0.15rem; margin-bottom: 1rem; }
+  .live__list a { display: flex; gap: 0.6rem; align-items: baseline; padding: 0.5rem 0.25rem; border-bottom: 1px dashed var(--asphalt-line); color: var(--asphalt-text) !important; }
+  .live__list a:hover strong { color: var(--yellow); }
+  .live__item { display: flex; flex-direction: column; font-size: 0.88rem; min-width: 0; overflow: hidden; }
+  .live__item small { color: var(--asphalt-muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .home-stats { margin-top: 1.25rem; }
+
+  .pipeline__steps { list-style: none; display: grid; gap: 0.9rem; counter-reset: step; }
+  @media (min-width: 900px) { .pipeline__steps { grid-template-columns: repeat(3, 1fr); } }
+  .pipeline__step { position: relative; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius-lg); padding: 1.25rem 1.25rem 1.1rem; display: flex; flex-direction: column; gap: 0.5rem; border-top: 6px solid var(--line-strong); }
+  .pipeline__step--permits { border-top-color: var(--mark-permits); }
+  .pipeline__step--act16 { border-top-color: var(--mark-act16); }
+  .pipeline__num { font-family: var(--font-mono); font-size: 0.85rem; color: var(--faint); font-weight: 700; }
+  .pipeline__step h3 { font-size: 1.35rem; text-transform: uppercase; }
+  .pipeline__step p { color: var(--muted); font-size: 0.95rem; }
+  .pipeline__count { margin-top: auto; padding-top: 0.6rem; border-top: 1px dashed var(--line-strong); color: var(--ink); font-weight: 600; }
+  .pipeline__count b { font-size: 1.35rem; margin-right: 0.3rem; }
+  @media (min-width: 900px) {
+    .pipeline__step:not(:last-child)::after { content: "→"; position: absolute; right: -0.85rem; top: 1.25rem; z-index: 2; width: 1.6rem; height: 1.6rem; display: grid; place-items: center; background: var(--yellow); color: var(--yellow-ink); border-radius: 50%; font-weight: 900; }
   }
 
-  .hero h1 {
-    font-size: 1.85rem;
-    font-weight: 800;
-    letter-spacing: -0.03em;
-    background: linear-gradient(135deg, var(--color-primary) 0%, var(--color-coral) 50%, var(--color-accent) 100%);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-    background-clip: text;
-    line-height: 1.15;
-  }
+  .latest-col__title { display: flex; align-items: center; gap: 0.5rem; font-size: 1.1rem; text-transform: uppercase; letter-spacing: 0.04em; margin-bottom: 0.75rem; }
+  .latest-col__list { display: grid; gap: 0.75rem; }
 
-  .hero__subtitle {
-    max-width: 640px;
-    margin: 0.75rem auto 0;
-    color: var(--color-text-muted);
-    font-size: 0.9rem;
-    line-height: 1.65;
-  }
+  .map-teaser { display: grid; gap: 1.5rem; align-items: center; }
+  @media (min-width: 900px) { .map-teaser { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); padding: 2rem; } }
+  .map-teaser h2 { margin-top: 0.5rem; }
+  .map-teaser p { margin-top: 0.75rem; color: var(--muted); }
 
-  .hero__updated {
-    display: inline-block;
-    margin-top: 0.85rem;
-    font-size: 0.73rem;
-    color: var(--color-success);
-    font-weight: 600;
-    background: var(--color-success-light);
-    padding: 0.3rem 0.75rem;
-    border-radius: var(--radius-full);
-  }
+  .district-grid { list-style: none; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 210px), 1fr)); gap: 0.5rem; }
+  .district { display: flex; align-items: center; justify-content: space-between; gap: 0.5rem; padding: 0.7rem 0.85rem; background: var(--surface); border: 1px solid var(--line); border-radius: var(--radius); color: var(--ink); font-weight: 700; transition: border-color var(--transition), transform var(--transition); }
+  .district:hover { border-color: var(--ink); color: var(--ink); transform: translateY(-1px); }
+  .district__nums { display: flex; gap: 0.25rem; }
+  .district__nums .badge { font-family: var(--font-mono); font-size: 0.72rem; padding: 0.1rem 0.45rem; }
+  .legend-note { font-size: 0.85rem; color: var(--muted); margin: 0.75rem 0 1.25rem; }
+  .neighborhood-chips { margin-top: 0.5rem; }
 
-  .section-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: baseline;
-    margin-bottom: 0.75rem;
-    gap: 0.5rem;
-  }
+  .card-title { font-size: 1.5rem; margin: 0.4rem 0 1rem; }
+  .card-link { display: inline-flex; margin-top: 1.1rem; }
 
-  .section-header h2 {
-    font-size: 1.1rem;
-    font-weight: 700;
-    letter-spacing: -0.01em;
-  }
+  .search-help { display: grid; gap: 2rem; }
+  @media (min-width: 1000px) { .search-help { grid-template-columns: 1fr 1fr; gap: 3rem; } }
+  .search-help h2 { margin: 0.5rem 0 1rem; }
+  .search-help__main h2 + p, .search-help__main .notice { margin-bottom: 1.5rem; }
+  .steps { list-style: none; counter-reset: s; display: grid; gap: 0.8rem; margin-bottom: 1.25rem; }
+  .steps li { counter-increment: s; position: relative; padding-left: 3rem; color: var(--ink-2); }
+  .steps li::before { content: counter(s); position: absolute; left: 0; top: -0.1rem; width: 2.1rem; height: 2.1rem; display: grid; place-items: center; background: var(--ink); color: var(--yellow); font-family: var(--font-display); font-weight: 900; border-radius: 8px; }
+  .steps b { display: block; color: var(--ink); }
 
-  .section-header a {
-    font-size: 0.8rem;
-    font-weight: 600;
-    white-space: nowrap;
-  }
+  .guide-card { display: flex; flex-direction: column; gap: 0.6rem; }
+  .guide-card :global(svg) { color: var(--orange); }
+  .guide-card h3 { font-size: 1.25rem; }
+  .guide-card p { color: var(--muted); font-size: 0.93rem; }
 
-  .district-grid {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 0.4rem;
-  }
-
-  .district-chip {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.4rem;
-    padding: 0.4rem 0.75rem;
-    background: var(--color-surface);
-    border: 1.5px solid var(--color-border-light);
-    border-radius: var(--radius);
-    font-size: 0.8rem;
-    font-weight: 500;
-    color: var(--color-text);
-    transition: all var(--transition);
-  }
-
-  .district-chip__count {
-    font-weight: 800;
-    color: var(--color-primary);
-    font-size: 0.8rem;
-  }
-
-  .district-chip--accent .district-chip__count {
-    color: var(--color-accent);
-  }
-
-  .recent-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-
-  .recent-card {
-    color: var(--color-text);
-    display: block;
-    border-left: 3px solid transparent;
-    transition: all var(--transition);
-  }
-
-  .recent-card:hover {
-    color: var(--color-text);
-    border-left-color: var(--color-primary);
-    box-shadow: var(--shadow-md);
-  }
-
-  .recent-card__header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    margin-bottom: 0.4rem;
-  }
-
-  .recent-card__number {
-    font-weight: 700;
-    font-family: var(--font-mono);
-    font-size: 0.82rem;
-    color: var(--color-primary);
-  }
-
-  .recent-card__date {
-    font-size: 0.75rem;
-    color: var(--color-text-muted);
-    font-weight: 500;
-  }
-
-  .recent-card__object {
-    font-size: 0.82rem;
-    color: var(--color-text-muted);
-    line-height: 1.5;
-  }
-
-  .recent-card__footer {
-    display: flex;
-    align-items: center;
-    gap: 0.5rem;
-    margin-top: 0.6rem;
-    flex-wrap: wrap;
-  }
-
-  .recent-card__meta {
-    font-size: 0.7rem;
-    color: var(--color-text-muted);
-    font-weight: 500;
-  }
-
-  .blog-grid {
-    display: grid;
-    grid-template-columns: 1fr;
-    gap: 0.75rem;
-  }
-
-  .blog-home-card {
-    display: block;
-    color: var(--color-text);
-    transition: all var(--transition);
-    border-left: 3px solid transparent;
-  }
-
-  .blog-home-card__date {
-    font-size: 0.7rem;
-    color: var(--color-text-muted);
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.03em;
-  }
-
-  .blog-home-card__title {
-    font-size: 0.95rem;
-    font-weight: 700;
-    line-height: 1.35;
-    margin: 0.3rem 0 0.35rem;
-    letter-spacing: -0.01em;
-  }
-
-  .blog-home-card__desc {
-    font-size: 0.82rem;
-    color: var(--color-text-muted);
-    line-height: 1.5;
-  }
-
-  @media (min-width: 640px) {
-    .hero { padding: 2.5rem 0 1.5rem; }
-    .hero h1 { font-size: 2.75rem; }
-    .hero__subtitle { font-size: 1.05rem; line-height: 1.7; margin-top: 1rem; }
-    .section-header h2 { font-size: 1.25rem; }
-    .section-header { margin-bottom: 1rem; }
-    .district-chip { padding: 0.5rem 1rem; font-size: 0.875rem; gap: 0.5rem; }
-    .district-chip__count { font-size: 0.9rem; }
-    .district-grid { gap: 0.5rem; }
-    .recent-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
-    .recent-card__object { min-height: 3.5rem; }
-    .blog-grid { grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem; }
-    .blog-home-card__title { font-size: 1.05rem; }
-  }
-
-  @media (min-width: 640px) {
-    .district-chip:hover {
-      border-color: var(--color-primary);
-      background: var(--color-primary-light);
-      color: var(--color-primary);
-      transform: translateY(-1px);
-      box-shadow: var(--shadow-sm);
-    }
-    .district-chip--accent:hover {
-      border-color: var(--color-accent);
-      background: var(--color-accent-light);
-      color: #92400e;
-    }
-    .blog-home-card:hover {
-      border-left-color: var(--color-primary);
-      box-shadow: var(--shadow-md);
-      color: var(--color-text);
-      transform: translateY(-2px);
-    }
-  }
+  .cta { padding: clamp(1.5rem, 1rem + 3vw, 3rem); display: grid; gap: 1.5rem; align-items: center; }
+  @media (min-width: 900px) { .cta { grid-template-columns: 1.4fr auto; } }
+  .cta h2 { margin: 0.5rem 0 0.6rem; }
+  .cta .eyebrow { color: var(--yellow); }
+  .cta__actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 </style>

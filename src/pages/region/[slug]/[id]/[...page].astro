@@ -1,0 +1,91 @@
+---
+// Complete, crawlable list of one register's documents in one district (replaces the old ?region= filter URLs).
+import Base from "../../../../layouts/Base.astro";
+import Breadcrumbs from "../../../../components/Breadcrumbs.astro";
+import DocRow from "../../../../components/DocRow.astro";
+import Icon from "../../../../components/Icon.astro";
+import { breadcrumbs } from "../../../../lib/seo";
+import { getAllRegionsWithSlugs, getRegionRecords, type RegisterId } from "../../../../lib/data";
+import { fmtNumber } from "../../../../lib/format";
+
+export function getStaticPaths() {
+  const PAGE_SIZE = 60;
+  return getAllRegionsWithSlugs().flatMap((region) =>
+    (["act16", "permits"] as RegisterId[]).flatMap((id) => {
+      const count = id === "act16" ? region.act16 : region.permits;
+      const pages = Math.max(1, Math.ceil(count / PAGE_SIZE));
+      return Array.from({ length: pages }, (_, i) => ({
+        params: { slug: region.slug, id, page: i === 0 ? undefined : String(i + 1) },
+        props: { regionName: region.name, registerId: id, page: i + 1, pages },
+      }));
+    })
+  );
+}
+
+const PAGE_SIZE = 60;
+const { regionName, registerId, page, pages } = Astro.props as { regionName: string; registerId: RegisterId; page: number; pages: number };
+const slug = Astro.params.slug!;
+const records = getRegionRecords(regionName)[registerId];
+const entries = records.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+const isPermits = registerId === "permits";
+const base = `/region/${slug}/${registerId}/`;
+const pageUrl = (n: number) => (n === 1 ? base : `${base}${n}/`);
+const label = isPermits ? "Разрешения за строеж" : "Акт 16";
+const title = isPermits
+  ? `Разрешения за строеж в район ${regionName}, София${page > 1 ? ` — страница ${page}` : " — регистър"}`
+  : `Акт 16 в район ${regionName} — удостоверения за въвеждане в експлоатация${page > 1 ? `, стр. ${page}` : ""}`;
+const description = isPermits
+  ? `Всички ${fmtNumber(records.length)} издадени разрешения за строеж в район ${regionName}, София: номер, дата, възложител и описание на строежа по данни от НАГ.${page > 1 ? ` Страница ${page} от ${pages}.` : ""}`
+  : `Всички ${fmtNumber(records.length)} удостоверения за въвеждане в експлоатация (Акт 16) в район ${regionName}, София: номер, дата, надзор и обект по данни от НАГ.${page > 1 ? ` Страница ${page} от ${pages}.` : ""}`;
+const windowPages = Array.from({ length: pages }, (_, i) => i + 1).filter((n) => n === 1 || n === pages || Math.abs(n - page) <= 2);
+---
+
+<Base title={title} description={description} structuredData={[breadcrumbs([
+  { name: "Начало", path: "/" }, { name: "Райони", path: "/region/" }, { name: regionName, path: `/region/${slug}/` }, { name: label, path: Astro.url.pathname },
+])]}>
+  <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "Райони", path: "/region/" }, { name: regionName, path: `/region/${slug}/` }, { name: page > 1 ? `${label} · стр. ${page}` : label }]} />
+
+  <header class="page-head">
+    <span class="eyebrow">Район {regionName}</span>
+    <h1>{isPermits ? `Разрешения за строеж в район ${regionName}` : `Акт 16 в район ${regionName}`}</h1>
+    <p class="page-head__lead">
+      {isPermits
+        ? `${fmtNumber(records.length)} разрешения за строеж, издадени за обекти в район ${regionName}, най-новите първи.`
+        : `${fmtNumber(records.length)} удостоверения за въвеждане в експлоатация на строежи в район ${regionName}, най-новите първи.`}
+      {pages > 1 && ` Страница ${page} от ${pages}.`}
+    </p>
+    <nav class="tabs region-tabs" aria-label="Регистър">
+      <a href={`/region/${slug}/act16/`} aria-current={!isPermits ? "page" : undefined}><span class="dot dot--act16"></span> Акт 16</a>
+      <a href={`/region/${slug}/permits/`} aria-current={isPermits ? "page" : undefined}><span class="dot dot--permits"></span> Разрешения</a>
+    </nav>
+  </header>
+
+  {entries.length ? (
+    <ol class="doc-list region-list">{entries.map((r) => <DocRow registerId={registerId} record={r} showRegion={false} showParty />)}</ol>
+  ) : (
+    <p class="notice">Няма документи от този тип в района.</p>
+  )}
+
+  {pages > 1 && (
+    <nav class="pager" aria-label="Страници">
+      {page > 1 && <a href={pageUrl(page - 1)} rel="prev"><Icon name="back" size={16} /></a>}
+      {windowPages.map((n, i) => (
+        <>
+          {i > 0 && n - windowPages[i - 1] > 1 && <span>…</span>}
+          {n === page ? <span aria-current="page">{n}</span> : <a href={pageUrl(n)}>{n}</a>}
+        </>
+      ))}
+      {page < pages && <a href={pageUrl(page + 1)} rel="next"><Icon name="arrow" size={16} /></a>}
+    </nav>
+  )}
+
+  <p class="list-foot">
+    <a href={`/region/${slug}/`}>Обобщение за район {regionName}</a> · <a href={`/register/${registerId}/#region=${encodeURIComponent(regionName)}`}>Търсене и филтри</a> · <a href="/check/">Проверка на имот</a>
+  </p>
+</Base>
+
+<style>
+  .region-tabs { margin-top: 1.1rem; }
+  .region-list { margin-top: 1.5rem; }
+  .list-foot { margin-top: 1.5rem; color: var(--muted); }
+</style>

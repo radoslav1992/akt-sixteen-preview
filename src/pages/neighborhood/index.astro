@@ -1,0 +1,53 @@
+---
+import Base from "../../layouts/Base.astro";
+import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import { breadcrumbs } from "../../lib/seo";
+import { getListedNeighborhoods, neighborhoodLabel, type NeighborhoodSummary } from "../../lib/places";
+import { DISTRICTS } from "../../lib/places";
+import { fmtNumber } from "../../lib/format";
+
+const hoods = getListedNeighborhoods();
+const byRegion = new Map<string, NeighborhoodSummary[]>();
+for (const h of hoods) {
+  const r = h.regions[0]?.[0] ?? "Други";
+  byRegion.set(r, [...(byRegion.get(r) ?? []), h]);
+}
+const regionOrder = DISTRICTS.map((d) => d.name).filter((n) => byRegion.has(n)).sort((a, b) => a.localeCompare(b, "bg"));
+---
+
+<Base
+  title="Квартали и села в София — ново строителство и Акт 16"
+  description={`${fmtNumber(hoods.length)} квартала и села в Столична община с разрешения за строеж и удостоверения Акт 16: Манастирски ливади, Кръстова вада, Малинова долина, Бояна, Бистрица и още.`}
+  structuredData={[breadcrumbs([{ name: "Начало", path: "/" }, { name: "Квартали", path: "/neighborhood/" }])]}
+>
+  <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "Райони", path: "/region/" }, { name: "Квартали" }]} />
+  <header class="page-head">
+    <span class="eyebrow">Квартали · местности · села</span>
+    <h1>Ново строителство по квартали в София</h1>
+    <p class="page-head__lead">{fmtNumber(hoods.length)} квартала и села с поне 5 документа. Кварталът е определен по полето „Местност“ и кадастралния идентификатор в регистрите на НАГ.</p>
+  </header>
+
+  <div class="hood-columns">
+    {regionOrder.map((r) => (
+      <section class="hood-group card">
+        <h2><a href={`/region/${DISTRICTS.find((d) => d.name === r)!.slug}/`}>{r}</a></h2>
+        <ul>
+          {byRegion.get(r)!.map((h) => (
+            <li><a href={`/neighborhood/${h.slug}/`}>{neighborhoodLabel(h)}</a> <span class="mono muted">{h.total}</span></li>
+          ))}
+        </ul>
+      </section>
+    ))}
+  </div>
+</Base>
+
+<style>
+  .hood-columns { columns: 1; column-gap: 1rem; margin-top: 1.5rem; }
+  @media (min-width: 700px) { .hood-columns { columns: 2; } }
+  @media (min-width: 1100px) { .hood-columns { columns: 3; } }
+  .hood-group { break-inside: avoid; margin-bottom: 1rem; }
+  .hood-group h2 { font-size: 1.3rem; margin-bottom: 0.6rem; }
+  .hood-group h2 a { color: var(--ink); }
+  .hood-group ul { list-style: none; display: grid; gap: 0.25rem; }
+  .hood-group li { display: flex; justify-content: space-between; gap: 0.5rem; border-bottom: 1px dashed var(--line); padding: 0.25rem 0; }
+</style>

@@ -1,0 +1,117 @@
+---
+import Base from "../layouts/Base.astro";
+import Icon from "../components/Icon.astro";
+---
+
+<Base title="Профил и следени обекти | Акт 16" description="Вход, регистрация и списък със следени имоти, фирми, райони и квартали в Акт 16 Тракер." noindex>
+  <div class="account" id="account-app">
+    <section class="account-intro panel-dark blueprint">
+      <span class="eyebrow">Безплатен профил</span>
+      <h1 data-state-title>Следени обекти</h1>
+      <p data-state-lead>Следете имоти, райони, квартали и фирми. Без профил списъкът се пази само на това устройство.</p>
+    </section>
+
+    <div class="account-grid">
+      <section class="card watch" aria-labelledby="watch-title">
+        <div class="watch__head">
+          <h2 id="watch-title">Следени</h2>
+          <button type="button" class="btn btn--ghost btn--sm" id="mark-all" hidden>Отбележи всички като видени</button>
+        </div>
+        <div id="watch-list"><p class="muted">Зареждане…</p></div>
+        <div class="watch__empty" id="watch-empty" hidden>
+          <Icon name="star" size={28} />
+          <p>Все още не следите нищо. Натиснете „Следи“ на страница на <a href="/region/">район</a>, <a href="/neighborhood/">квартал</a>, <a href="/company/">фирма</a> или документ.</p>
+        </div>
+      </section>
+
+      <aside class="account-side">
+        <section class="card auth" id="auth-forms" hidden>
+          <div class="tabs auth__tabs" role="tablist">
+            <button type="button" role="tab" aria-selected="true" data-tab="login">Вход</button>
+            <button type="button" role="tab" aria-selected="false" data-tab="register">Регистрация</button>
+          </div>
+          <form id="auth-form" class="auth__form" novalidate>
+            <div class="field" data-only="register" hidden>
+              <label class="field__label" for="auth-name">Име (по желание)</label>
+              <input id="auth-name" name="name" type="text" autocomplete="name" maxlength="80" />
+            </div>
+            <div class="field">
+              <label class="field__label" for="auth-email">Имейл</label>
+              <input id="auth-email" name="email" type="email" autocomplete="email" required />
+            </div>
+            <div class="field">
+              <label class="field__label" for="auth-password">Парола</label>
+              <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" required />
+              <small class="muted" data-only="register" hidden>Поне 8 символа.</small>
+            </div>
+            <p class="auth__error" id="auth-error" role="alert" hidden></p>
+            <button type="submit" class="btn btn--primary" id="auth-submit">Вход</button>
+            <p class="muted auth__legal" data-only="register" hidden>С регистрацията приемате <a href="/privacy/">политиката за поверителност</a>. Пазим само имейла, името и списъка ви.</p>
+          </form>
+        </section>
+
+        <section class="card profile" id="profile" hidden>
+          <h2>Профил</h2>
+          <p class="profile__email" id="profile-email"></p>
+          <form id="settings-form" class="auth__form">
+            <div class="field">
+              <label class="field__label" for="settings-name">Име</label>
+              <input id="settings-name" type="text" maxlength="80" />
+            </div>
+            <label class="toggle"><input type="checkbox" id="settings-alerts" /> Искам имейл известия за нови документи (скоро)</label>
+            <button type="submit" class="btn btn--ghost btn--sm">Запази</button>
+          </form>
+          <div class="profile__actions">
+            <button type="button" class="btn btn--dark btn--sm" id="logout"><Icon name="logout" size={16} /> Изход</button>
+          </div>
+          <details class="profile__danger">
+            <summary>Изтриване на профила</summary>
+            <form id="delete-form" class="auth__form">
+              <p class="muted">Изтрива профила, сесиите и списъка със следени. Действието е необратимо.</p>
+              <label class="field__label" for="delete-password">Парола за потвърждение</label>
+              <input id="delete-password" type="password" autocomplete="current-password" required />
+              <button type="submit" class="btn btn--ghost btn--sm">Изтрий профила</button>
+            </form>
+          </details>
+        </section>
+      </aside>
+    </div>
+  </div>
+</Base>
+
+<script>
+  import { initAccount } from "../scripts/account";
+  initAccount();
+</script>
+
+<style>
+  .account-intro { padding: clamp(1.3rem, 1rem + 2vw, 2.4rem); margin-top: 0.5rem; }
+  .account-intro .eyebrow { color: var(--yellow); }
+  .account-intro h1 { font-size: clamp(2rem, 1.5rem + 2vw, 3rem); margin: 0.5rem 0; text-transform: uppercase; }
+  .account-grid { display: grid; gap: 1rem; margin-top: 1rem; }
+  @media (min-width: 960px) { .account-grid { grid-template-columns: 1fr 360px; align-items: start; } }
+  .account-side { display: grid; gap: 1rem; }
+  .watch__head { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 1rem; flex-wrap: wrap; }
+  .watch__head h2, .profile h2 { font-size: 1.4rem; }
+  .watch__empty { display: grid; justify-items: center; gap: 0.6rem; text-align: center; padding: 2rem 1rem; color: var(--muted); }
+  .auth__tabs { width: 100%; margin-bottom: 1rem; }
+  .auth__tabs button { flex: 1; }
+  .auth__form { display: grid; gap: 0.85rem; }
+  .auth__error { color: var(--red); font-weight: 600; font-size: 0.92rem; }
+  .auth__legal { font-size: 0.82rem; }
+  .profile { display: grid; gap: 1rem; }
+  .profile__email { font-family: var(--font-mono); color: var(--muted); overflow-wrap: anywhere; }
+  .profile__danger summary { cursor: pointer; color: var(--red); font-weight: 700; font-size: 0.9rem; }
+  .profile__danger form { margin-top: 0.75rem; }
+  .toggle { display: flex; gap: 0.5rem; align-items: center; font-weight: 600; font-size: 0.93rem; }
+  :global(.watch-group + .watch-group) { margin-top: 1.25rem; }
+  :global(.watch-group h3) { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.1em; color: var(--muted); margin-bottom: 0.5rem; }
+  :global(.watch-item) { display: flex; align-items: center; justify-content: space-between; gap: 0.75rem; padding: 0.7rem 0.85rem; border: 1px solid var(--line); border-radius: var(--radius); background: var(--surface-2); }
+  :global(.watch-item + .watch-item) { margin-top: 0.45rem; }
+  :global(.watch-item a) { font-weight: 700; color: var(--ink); overflow-wrap: anywhere; }
+  :global(.watch-item__meta) { display: flex; align-items: center; gap: 0.4rem; flex-shrink: 0; }
+  :global(.watch-item__new) { background: var(--yellow); color: var(--yellow-ink); border-radius: var(--radius-full); padding: 0.1rem 0.55rem; font-size: 0.78rem; font-weight: 800; }
+  :global(.watch-item button) { all: unset; cursor: pointer; color: var(--muted); padding: 0.25rem; border-radius: 4px; }
+  :global(.watch-item button:hover) { color: var(--red); }
+  :global(.watch-item button:focus-visible) { box-shadow: var(--focus); }
+</style>

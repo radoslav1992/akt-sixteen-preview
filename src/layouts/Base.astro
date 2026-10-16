@@ -1,78 +1,132 @@
 ---
+import "@fontsource-variable/sofia-sans/wght.css";
+import "@fontsource-variable/sofia-sans-condensed/wght.css";
+import "@fontsource-variable/jetbrains-mono/wght.css";
 import "../styles/global.css";
-import { canonicalUrl as getCanonicalUrl, jsonLd } from "../lib/seo";
+import Icon from "../components/Icon.astro";
+import { canonicalUrl as getCanonicalUrl, jsonLd, SITE_URL } from "../lib/seo";
 
+interface Alternate { hreflang: string; href: string }
 interface Props {
   title: string;
   description?: string;
   structuredData?: unknown[];
   type?: "website" | "article";
+  lang?: "bg" | "en" | "ru";
+  noindex?: boolean;
+  alternates?: Alternate[];
+  ogImage?: string;
+  /** Edge-to-edge main area (map page). */
+  bleed?: boolean;
+  feeds?: Array<{ title: string; href: string }>;
 }
 
 const DEFAULT_DESCRIPTION = "Регистър на удостоверенията за въвеждане в експлоатация (Акт 16) и разрешенията за строеж в София — с данни от НАГ, обновявани ежедневно.";
 
-const { title, description = DEFAULT_DESCRIPTION, structuredData = [], type = "website" } = Astro.props;
+const {
+  title,
+  description = DEFAULT_DESCRIPTION,
+  structuredData = [],
+  type = "website",
+  lang = "bg",
+  noindex = false,
+  alternates = [],
+  ogImage = "/og/default.png",
+  bleed = false,
+  feeds = [],
+} = Astro.props;
 const canonicalUrl = new URL(getCanonicalUrl(Astro.url.pathname));
+const ogImageUrl = new URL(ogImage, SITE_URL).href;
+const locale = { bg: "bg_BG", en: "en_US", ru: "ru_RU" }[lang];
 
 const pathname = Astro.url.pathname.replace(/\/$/, "") || "/";
 const navLinks = [
-  { href: "/", label: "Начало", match: (p: string) => p === "/" },
+  { href: "/check/", label: "Проверка", match: (p: string) => p.startsWith("/check") },
   { href: "/register/act16/", label: "Акт 16", match: (p: string) => p.startsWith("/register/act16") },
   { href: "/register/permits/", label: "Разрешения", match: (p: string) => p.startsWith("/register/permits") },
+  { href: "/map/", label: "Карта", match: (p: string) => p.startsWith("/map") },
+  { href: "/company/", label: "Фирми", match: (p: string) => p.startsWith("/company") },
+  { href: "/region/", label: "Райони", match: (p: string) => p.startsWith("/region") || p.startsWith("/neighborhood") },
   { href: "/stats/", label: "Статистика", match: (p: string) => p.startsWith("/stats") },
-  { href: "/blog/", label: "Блог", match: (p: string) => p.startsWith("/blog") },
+  { href: "/blog/", label: "Ръководства", match: (p: string) => p.startsWith("/blog") || p.startsWith("/en") || p.startsWith("/ru") },
 ];
+const tabLinks = [
+  { href: "/", label: "Начало", icon: "home" as const, match: (p: string) => p === "/" },
+  { href: "/check/", label: "Проверка", icon: "search" as const, match: (p: string) => p.startsWith("/check") || p.startsWith("/register") },
+  { href: "/map/", label: "Карта", icon: "map" as const, match: (p: string) => p.startsWith("/map") },
+  { href: "/account/", label: "Следени", icon: "star" as const, match: (p: string) => p.startsWith("/account") },
+];
+
+const organization = {
+  "@context": "https://schema.org",
+  "@type": "Organization",
+  "@id": `${SITE_URL}/#organization`,
+  name: "Акт 16 Тракер",
+  alternateName: "akt16.org",
+  url: `${SITE_URL}/`,
+  logo: `${SITE_URL}/icons/icon-512.png`,
+  email: "info@akt16.org",
+  areaServed: { "@type": "City", name: "София" },
+};
+const website = {
+  "@context": "https://schema.org",
+  "@type": "WebSite",
+  "@id": `${SITE_URL}/#website`,
+  url: `${SITE_URL}/`,
+  name: "Акт 16 Тракер",
+  alternateName: "akt16.org",
+  inLanguage: "bg-BG",
+  publisher: { "@id": `${SITE_URL}/#organization` },
+};
 ---
 
 <!doctype html>
-<html lang="bg">
+<html lang={lang}>
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>{title}</title>
     <meta name="description" content={description} />
     <link rel="canonical" href={canonicalUrl.href} />
+    {noindex && <meta name="robots" content="noindex, follow" />}
+    {alternates.map((alt) => <link rel="alternate" hreflang={alt.hreflang} href={new URL(alt.href, SITE_URL).href} />)}
 
-    <meta name="theme-color" content="#7c3aed" />
+    <meta name="theme-color" content="#121418" />
+    <meta name="color-scheme" content="light dark" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
-    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Акт 16" />
-    <link rel="apple-touch-icon" href="/icons/icon-192.svg" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="apple-touch-icon" href="/icons/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.json" />
+    <link rel="sitemap" href="/sitemap-index.xml" />
+    <link rel="alternate" type="application/rss+xml" title="Акт 16 Тракер — нови документи" href="/rss.xml" />
+    {feeds.map((feed) => <link rel="alternate" type="application/rss+xml" title={feed.title} href={feed.href} />)}
 
     <meta property="og:type" content={type} />
     <meta property="og:title" content={title} />
     <meta property="og:description" content={description} />
     <meta property="og:url" content={canonicalUrl.href} />
-    <meta property="og:locale" content="bg_BG" />
+    <meta property="og:image" content={ogImageUrl} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content={locale} />
     <meta property="og:site_name" content="Акт 16 Тракер" />
-
-    <meta name="twitter:card" content="summary" />
+    <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:title" content={title} />
     <meta name="twitter:description" content={description} />
+    <meta name="twitter:image" content={ogImageUrl} />
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link
-      href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap"
-      rel="stylesheet"
-    />
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-    <link rel="sitemap" href="/sitemap-index.xml" />
-    <title>{title}</title>
-    <script type="application/ld+json" set:html={jsonLd({
-      "@context": "https://schema.org", "@type": "WebSite",
-      "@id": "https://akt16.org/#website", url: "https://akt16.org/",
-      name: "Акт 16 Тракер", alternateName: "akt16.org", inLanguage: "bg-BG",
-    })} />
+    <script type="application/ld+json" set:html={jsonLd(organization)} />
+    <script type="application/ld+json" set:html={jsonLd(website)} />
     {structuredData.map((data) => <script type="application/ld+json" set:html={jsonLd(data)} />)}
 
     <script is:inline>
       (function () {
         try {
           var stored = localStorage.getItem("theme");
-          var prefersDark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
-          var theme = stored || (prefersDark ? "dark" : "light");
-          document.documentElement.setAttribute("data-theme", theme);
+          var dark = window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches;
+          document.documentElement.setAttribute("data-theme", stored || (dark ? "dark" : "light"));
         } catch (e) {}
       })();
     </script>
@@ -85,357 +139,245 @@ const navLinks = [
       gtag('config', 'G-92FYWLG2LM');
     </script>
   </head>
-  <body>
+  <body class:list={{ "is-bleed": bleed }}>
+    <a class="skip-link" href="#main">Към съдържанието</a>
     <header class="site-header">
-      <div class="container">
-        <div class="nav">
-          <a href="/" class="nav__logo" aria-label="Акт 16 Тракер — начало">
-            <span class="nav__logo-icon">16</span>
-            <span class="nav__logo-text">Акт 16 Тракер</span>
-          </a>
-          <div class="nav__actions">
-            <button
-              type="button"
-              class="theme-toggle"
-              aria-label="Превключи тема"
-              title="Превключи тема"
-            >
-              <svg class="theme-toggle__sun" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41"/></svg>
-              <svg class="theme-toggle__moon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            </button>
-            <button
-              type="button"
-              class="nav__toggle"
-              aria-controls="primary-nav"
-              aria-expanded="false"
-              aria-label="Меню"
-            >
-              <span class="nav__toggle-bar"></span>
-              <span class="nav__toggle-bar"></span>
-              <span class="nav__toggle-bar"></span>
-            </button>
-          </div>
-          <ul class="nav__links" id="primary-nav">
+      <div class="hazard-bar site-header__stripe" aria-hidden="true"></div>
+      <div class="container site-header__inner">
+        <a href="/" class="logo" aria-label="Акт 16 Тракер — начало">
+          <span class="logo__mark" aria-hidden="true">16</span>
+          <span class="logo__text">
+            <span class="logo__name">Акт 16</span>
+            <span class="logo__tag">Тракер · София</span>
+          </span>
+        </a>
+
+        <nav class="nav" id="primary-nav" aria-label="Основна навигация">
+          <ul class="nav__list">
             {navLinks.map((link) => {
-              const isActive = link.match(pathname);
+              const active = link.match(pathname);
               return (
                 <li>
-                  <a
-                    href={link.href}
-                    class:list={["nav__link", { "nav__link--active": isActive }]}
-                    aria-current={isActive ? "page" : undefined}
-                  >
+                  <a href={link.href} class:list={["nav__link", { "is-active": active }]} aria-current={active ? "page" : undefined}>
                     {link.label}
                   </a>
                 </li>
               );
             })}
           </ul>
+          <div class="nav__mobile-extra">
+            <a href="/new-buildings/">Нови сгради с Акт 16</a>
+            <a href="/neighborhood/">Квартали</a>
+            <a href="/data/">Отворени данни</a>
+            <a href="/en/act-16-bulgaria/" hreflang="en" lang="en">English guide</a>
+          </div>
+        </nav>
+
+        <div class="header-actions">
+          <a href="/check/" class="icon-btn header-actions__search" aria-label="Проверка на имот" title="Проверка на имот"><Icon name="search" /></a>
+          <button type="button" class="icon-btn theme-toggle" aria-label="Превключи светла/тъмна тема" title="Тема">
+            <Icon name="sun" class="theme-toggle__sun" />
+            <Icon name="moon" class="theme-toggle__moon" />
+          </button>
+          <a href="/account/" class="account-link" data-account-link>
+            <Icon name="user" />
+            <span data-account-label>Вход</span>
+            <span class="account-link__count" data-watch-count hidden></span>
+          </a>
+          <button type="button" class="icon-btn nav-toggle" aria-controls="primary-nav" aria-expanded="false" aria-label="Меню">
+            <Icon name="menu" class="nav-toggle__open" />
+            <Icon name="close" class="nav-toggle__close" />
+          </button>
         </div>
       </div>
     </header>
 
-    <main class="main">
-      <div class="container">
-        <slot />
-      </div>
+    <main id="main" class:list={["main", { "main--bleed": bleed }]}>
+      {bleed ? <slot /> : <div class="container"><slot /></div>}
     </main>
 
     <footer class="site-footer">
-      <div class="container">
-        <div class="footer__inner">
-          <p>
-            Данните са от публичния регистър на
-            <a href="https://nag.sofia.bg" target="_blank" rel="noopener">НАГ — Столична община</a>.
-          </p>
-          <p class="footer__auto">Обновява се автоматично всеки ден.</p>
-          <p>Акт 16 Тракер е независим информационен сайт, а не официален регистър на общината.</p>
-          <p><a href="/blog/proverka-akt-16-online/">Как да проверя Акт 16?</a> · <a href="mailto:info@akt16.org">info@akt16.org</a></p>
+      <div class="hazard-bar" aria-hidden="true"></div>
+      <div class="container site-footer__inner">
+        <div class="site-footer__brand">
+          <a href="/" class="logo logo--footer" aria-label="Акт 16 Тракер — начало">
+            <span class="logo__mark" aria-hidden="true">16</span>
+            <span class="logo__text"><span class="logo__name">Акт 16</span><span class="logo__tag">Тракер · София</span></span>
+          </a>
+          <p>Независим информационен сайт с данни от публичните регистри на <a href="https://nag.sofia.bg" target="_blank" rel="noopener">НАГ — Столична община</a>. Не е официален регистър. Обновява се автоматично всеки ден.</p>
+          <p><a href="mailto:info@akt16.org">info@akt16.org</a></p>
         </div>
+        <nav class="site-footer__cols" aria-label="Долна навигация">
+          <div>
+            <h2>Регистри</h2>
+            <a href="/register/act16/">Акт 16 — удостоверения</a>
+            <a href="/register/permits/">Разрешения за строеж</a>
+            <a href="/new-buildings/">Нови сгради с Акт 16</a>
+            <a href="/register/act16/archive/1/">Архив Акт 16</a>
+            <a href="/register/permits/archive/1/">Архив разрешения</a>
+          </div>
+          <div>
+            <h2>Инструменти</h2>
+            <a href="/check/">Проверка на имот</a>
+            <a href="/map/">Карта на строителството</a>
+            <a href="/company/">Фирми и надзор</a>
+            <a href="/stats/">Статистика</a>
+            <a href="/data/">Отворени данни (CSV)</a>
+          </div>
+          <div>
+            <h2>Райони</h2>
+            <a href="/region/">Всички 24 района</a>
+            <a href="/neighborhood/">Квартали и села</a>
+            <a href="/region/vitosha/">Витоша</a>
+            <a href="/region/mladost/">Младост</a>
+            <a href="/region/pancharevo/">Панчарево</a>
+          </div>
+          <div>
+            <h2>Ръководства</h2>
+            <a href="/blog/kakvo-e-akt-16/">Какво е Акт 16?</a>
+            <a href="/blog/proverka-akt-16-online/">Проверка за Акт 16</a>
+            <a href="/blog/razreshenie-za-stroezh/">Разрешение за строеж</a>
+            <a href="/en/act-16-bulgaria/" hreflang="en" lang="en">Act 16 in English</a>
+            <a href="/ru/akt-16-bolgariya/" hreflang="ru" lang="ru">Акт 16 по-русски</a>
+          </div>
+        </nav>
+      </div>
+      <div class="container site-footer__base">
+        <span>© {new Date().getFullYear()} akt16.org · Данни: НАГ — Столична община · Карти: © OpenStreetMap</span>
+        <span><a href="/rss.xml"><Icon name="rss" size={14} /> RSS</a> · <a href="/privacy/">Поверителност</a></span>
       </div>
     </footer>
 
-    <script is:inline>
-      if ("serviceWorker" in navigator) {
-        navigator.serviceWorker.register("/sw.js");
-      }
+    <nav class="tabbar" aria-label="Бърза навигация">
+      {tabLinks.map((tab) => (
+        <a href={tab.href} class:list={["tabbar__item", { "is-active": tab.match(pathname) }]} aria-current={tab.match(pathname) ? "page" : undefined}>
+          <Icon name={tab.icon} size={22} />
+          <span>{tab.label}</span>
+        </a>
+      ))}
+    </nav>
 
-      (function () {
-        var toggle = document.querySelector(".nav__toggle");
-        var menu = document.getElementById("primary-nav");
-        var header = document.querySelector(".site-header");
-        if (!toggle || !menu || !header) return;
-
-        function close() {
-          header.classList.remove("site-header--menu-open");
-          toggle.setAttribute("aria-expanded", "false");
-        }
-        function open() {
-          header.classList.add("site-header--menu-open");
-          toggle.setAttribute("aria-expanded", "true");
-        }
-
-        toggle.addEventListener("click", function () {
-          if (toggle.getAttribute("aria-expanded") === "true") close();
-          else open();
-        });
-
-        menu.addEventListener("click", function (e) {
-          if (e.target instanceof HTMLAnchorElement) close();
-        });
-
-        document.addEventListener("click", function (e) {
-          if (toggle.getAttribute("aria-expanded") !== "true") return;
-          if (header.contains(e.target)) return;
-          close();
-        });
-
-        document.addEventListener("keydown", function (e) {
-          if (e.key === "Escape") close();
-        });
-      })();
-
-      (function () {
-        var btn = document.querySelector(".theme-toggle");
-        if (!btn) return;
-        var themeMeta = document.querySelector('meta[name="theme-color"]');
-        function apply(theme) {
-          document.documentElement.setAttribute("data-theme", theme);
-          if (themeMeta) themeMeta.setAttribute("content", theme === "dark" ? "#0f0d12" : "#7c3aed");
-        }
-        btn.addEventListener("click", function () {
-          var current = document.documentElement.getAttribute("data-theme") || "light";
-          var next = current === "dark" ? "light" : "dark";
-          try { localStorage.setItem("theme", next); } catch (e) {}
-          apply(next);
-        });
-        // Sync meta color with current theme on load
-        apply(document.documentElement.getAttribute("data-theme") || "light");
-      })();
+    <script>
+      import { initShell } from "../scripts/shell";
+      initShell();
     </script>
   </body>
 </html>
 
 <style>
   .site-header {
-    border-bottom: 1px solid var(--color-border-light);
     position: sticky;
     top: 0;
     z-index: 100;
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    background: var(--color-header-bg);
+    background: var(--header-bg);
+    backdrop-filter: saturate(1.4) blur(14px);
+    -webkit-backdrop-filter: saturate(1.4) blur(14px);
+    border-bottom: 1px solid var(--line);
   }
+  .site-header__stripe { height: 5px; }
+  .site-header__inner { display: flex; align-items: center; gap: 1rem; min-height: 62px; }
 
-  .nav {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 0.75rem;
-    min-height: 56px;
-    padding: 0.45rem 0;
+  .logo { display: inline-flex; align-items: center; gap: 0.6rem; color: var(--ink); flex-shrink: 0; }
+  .logo:hover { color: var(--ink); }
+  .logo__mark {
+    width: 38px; height: 38px; display: grid; place-items: center;
+    background: var(--yellow); color: var(--yellow-ink);
+    font-family: var(--font-display); font-weight: 900; font-size: 1.25rem; letter-spacing: -0.03em;
+    border-radius: 8px; box-shadow: inset 0 -4px 0 rgba(0, 0, 0, 0.14), 0 0 0 2px var(--ink);
+    position: relative; overflow: hidden;
   }
+  .logo__mark::after { content: ""; position: absolute; right: -6px; bottom: -6px; width: 16px; height: 16px; background: var(--hazard); transform: rotate(45deg); opacity: 0.9; }
+  .logo__text { display: flex; flex-direction: column; line-height: 1; }
+  .logo__name { font-family: var(--font-display); font-weight: 900; font-size: 1.3rem; text-transform: uppercase; letter-spacing: 0.01em; }
+  .logo__tag { font-size: 0.7rem; font-weight: 700; text-transform: uppercase; letter-spacing: 0.14em; color: var(--muted); margin-top: 0.2rem; }
 
-  .nav__logo {
-    font-weight: 800;
-    font-size: 1.05rem;
-    color: var(--color-text);
-    display: inline-flex;
-    align-items: center;
-    gap: 0.55rem;
-    letter-spacing: -0.02em;
-    flex-shrink: 0;
-  }
-
-  .nav__logo:hover { color: var(--color-primary); }
-
-  .nav__logo-icon {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 30px;
-    height: 30px;
-    background: linear-gradient(135deg, var(--color-primary), var(--color-coral));
-    color: white;
-    font-size: 0.72rem;
-    font-weight: 800;
-    border-radius: 8px;
-    letter-spacing: 0;
-    flex-shrink: 0;
-    box-shadow: 0 2px 6px rgba(124, 58, 237, 0.25);
-  }
-
-  .nav__actions {
-    display: inline-flex;
-    align-items: center;
-    gap: 0.45rem;
-  }
-
-  .theme-toggle {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    background: transparent;
-    border: 1.5px solid var(--color-border);
-    border-radius: var(--radius);
-    color: var(--color-text);
-    cursor: pointer;
-    transition: border-color var(--transition), background var(--transition), color var(--transition);
-  }
-
-  .theme-toggle:hover {
-    border-color: var(--color-primary);
-    background: var(--color-primary-light);
-    color: var(--color-primary);
-  }
-
-  .theme-toggle__sun { display: inline; }
-  .theme-toggle__moon { display: none; }
-  :root[data-theme="dark"] .theme-toggle__sun { display: none; }
-  :root[data-theme="dark"] .theme-toggle__moon { display: inline; }
-
-  .nav__toggle {
-    display: inline-flex;
-    flex-direction: column;
-    justify-content: center;
-    gap: 4px;
-    width: 40px;
-    height: 40px;
-    padding: 0;
-    background: transparent;
-    border: 1.5px solid var(--color-border);
-    border-radius: var(--radius);
-    cursor: pointer;
-    transition: border-color var(--transition), background var(--transition);
-    align-items: center;
-  }
-
-  .nav__toggle:hover {
-    border-color: var(--color-primary);
-    background: var(--color-primary-light);
-  }
-
-  .nav__toggle-bar {
-    display: block;
-    width: 18px;
-    height: 2px;
-    background: var(--color-text);
-    border-radius: 2px;
-    transition: transform var(--transition), opacity var(--transition);
-  }
-
-  .site-header--menu-open .nav__toggle-bar:nth-child(1) {
-    transform: translateY(6px) rotate(45deg);
-  }
-  .site-header--menu-open .nav__toggle-bar:nth-child(2) { opacity: 0; }
-  .site-header--menu-open .nav__toggle-bar:nth-child(3) {
-    transform: translateY(-6px) rotate(-45deg);
-  }
-
-  .nav__links {
-    list-style: none;
-    display: none;
-    flex-direction: column;
-    position: absolute;
-    top: 100%;
-    left: 0;
-    right: 0;
-    background: var(--color-menu-bg);
-    backdrop-filter: blur(14px);
-    -webkit-backdrop-filter: blur(14px);
-    border-bottom: 1px solid var(--color-border-light);
-    box-shadow: var(--shadow-lg);
-    padding: 0.5rem 1rem 0.85rem;
-    gap: 0.2rem;
-    margin: 0;
-  }
-
-  .site-header--menu-open .nav__links { display: flex; }
-
+  .nav { display: none; }
+  .nav__list { list-style: none; display: flex; gap: 0.1rem; }
   .nav__link {
-    display: flex;
-    align-items: center;
-    font-size: 0.95rem;
-    font-weight: 600;
-    color: var(--color-text);
-    padding: 0.85rem 0.85rem;
-    border-radius: var(--radius);
-    transition: all var(--transition);
-    border: 1.5px solid transparent;
+    display: inline-flex; align-items: center; padding: 0.5rem 0.62rem; border-radius: var(--radius-sm);
+    font-family: var(--font-display); font-weight: 700; font-size: 1rem; text-transform: uppercase; letter-spacing: 0.04em;
+    color: var(--ink-2); position: relative;
   }
+  .nav__link:hover { color: var(--ink); background: var(--bg-deep); }
+  .nav__link.is-active { color: var(--ink); }
+  .nav__link.is-active::after { content: ""; position: absolute; left: 0.62rem; right: 0.62rem; bottom: 0.15rem; height: 3px; background: var(--yellow-strong); border-radius: 2px; }
+  .nav__mobile-extra { display: none; }
 
-  .nav__link:hover {
-    color: var(--color-primary);
-    background: var(--color-primary-light);
+  .header-actions { margin-left: auto; display: flex; align-items: center; gap: 0.4rem; }
+  .icon-btn {
+    width: 40px; height: 40px; display: inline-grid; place-items: center; border-radius: var(--radius);
+    border: 1.5px solid var(--line-strong); background: var(--surface); color: var(--ink); cursor: pointer;
   }
+  .icon-btn:hover { border-color: var(--ink); color: var(--ink); }
+  .theme-toggle :global(.theme-toggle__moon) { display: none; }
+  :global(:root[data-theme="dark"]) .theme-toggle :global(.theme-toggle__sun) { display: none; }
+  :global(:root[data-theme="dark"]) .theme-toggle :global(.theme-toggle__moon) { display: block; }
+  .nav-toggle :global(.nav-toggle__close) { display: none; }
+  :global(.menu-open) .nav-toggle :global(.nav-toggle__open) { display: none; }
+  :global(.menu-open) .nav-toggle :global(.nav-toggle__close) { display: block; }
 
-  .nav__link--active {
-    color: var(--color-primary);
-    background: var(--color-primary-light);
-    border-color: rgba(124, 58, 237, 0.18);
+  .account-link {
+    display: inline-flex; align-items: center; gap: 0.4rem; height: 40px; padding: 0 0.8rem;
+    border-radius: var(--radius); background: var(--ink); color: var(--bg);
+    font-family: var(--font-display); font-weight: 800; text-transform: uppercase; letter-spacing: 0.04em; font-size: 0.92rem;
   }
+  .account-link:hover { color: var(--bg); background: var(--ink-2); }
+  .account-link__count { background: var(--yellow); color: var(--yellow-ink); border-radius: var(--radius-full); padding: 0 0.4rem; font-family: var(--font-mono); font-size: 0.75rem; line-height: 1.45; }
+  .header-actions__search { display: none; }
 
-  .main {
-    flex: 1;
-    padding: 1.25rem 0 2rem;
-    padding-bottom: calc(2rem + var(--safe-bottom));
-  }
-
-  .site-footer {
-    border-top: 1px solid var(--color-border-light);
-    padding: 1.5rem 0;
-    padding-bottom: calc(1.5rem + var(--safe-bottom));
-    text-align: center;
-  }
-
-  .footer__inner {
-    font-size: 0.78rem;
-    color: var(--color-text-muted);
-  }
-
-  .footer__auto {
-    margin-top: 0.2rem;
-    font-size: 0.7rem;
-    opacity: 0.7;
-  }
-
-  @media (min-width: 720px) {
-    .nav { min-height: 60px; padding: 0.6rem 0; }
-
-    .nav__logo { font-size: 1.15rem; gap: 0.6rem; }
-    .nav__logo-icon { width: 32px; height: 32px; font-size: 0.78rem; border-radius: 9px; }
-
-    .nav__toggle { display: none; }
-
-    .nav__links {
-      display: flex;
-      flex-direction: row;
-      position: static;
-      background: transparent;
-      backdrop-filter: none;
-      -webkit-backdrop-filter: none;
-      border: none;
-      box-shadow: none;
-      padding: 0;
-      gap: 0.2rem;
+  /* Mobile menu */
+  @media (max-width: 1159px) {
+    :global(.menu-open) .nav {
+      display: block; position: fixed; inset: 67px 0 0 0; background: var(--bg); overflow-y: auto;
+      padding: 1rem var(--gutter) calc(6rem + var(--safe-bottom)); border-top: 1px solid var(--line);
     }
-
-    .nav__link {
-      font-size: 0.875rem;
-      padding: 0.45rem 0.85rem;
-    }
-
-    .nav__link--active {
-      border-color: transparent;
-    }
+    :global(.menu-open) .nav__list { flex-direction: column; gap: 0.2rem; }
+    :global(.menu-open) .nav__link { font-size: 1.5rem; padding: 0.7rem 0.4rem; width: 100%; }
+    :global(.menu-open) .nav__link.is-active::after { left: 0.4rem; right: auto; width: 40px; }
+    :global(.menu-open) .nav__mobile-extra { display: grid; gap: 0.2rem; margin-top: 1rem; padding-top: 1rem; border-top: 1px dashed var(--line-strong); }
+    .nav__mobile-extra a { padding: 0.55rem 0.4rem; font-weight: 700; color: var(--ink-2); }
+    :global(.menu-open) { overflow: hidden; }
+  }
+  @media (max-width: 560px) {
+    .account-link span[data-account-label] { display: none; }
+    .account-link { padding: 0 0.7rem; }
+    .logo__tag { display: none; }
+  }
+  @media (min-width: 1160px) {
+    .nav { display: block; margin-left: 0.5rem; }
+    .nav-toggle { display: none; }
+    .header-actions__search { display: inline-grid; }
   }
 
-  @media (min-width: 640px) {
-    .main { padding: 2rem 0 3rem; }
-    .site-footer { padding: 2rem 0; }
-    .footer__inner { font-size: 0.8rem; }
+  .main { flex: 1; padding: 1rem 0 3rem; }
+  .main--bleed { padding: 0; }
+
+  .site-footer { background: var(--asphalt); color: var(--asphalt-muted); margin-top: 2rem; padding-bottom: calc(4.5rem + var(--safe-bottom)); }
+  :global(.is-bleed) .site-footer { margin-top: 0; }
+  .site-footer__inner { display: grid; gap: 2rem; padding-top: 2.5rem; padding-bottom: 2rem; }
+  .site-footer__brand p { color: var(--asphalt-muted); font-size: 0.92rem; margin-top: 0.9rem; max-width: 380px; }
+  .site-footer a { color: var(--asphalt-text); }
+  .site-footer a:hover { color: var(--yellow); }
+  .logo--footer .logo__name { color: #fff; }
+  .logo--footer .logo__tag { color: var(--asphalt-muted); }
+  .site-footer__cols { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.5rem; }
+  .site-footer__cols h2 { font-size: 0.85rem; text-transform: uppercase; letter-spacing: 0.12em; color: var(--yellow); margin-bottom: 0.7rem; }
+  .site-footer__cols a { display: block; padding: 0.25rem 0; font-size: 0.93rem; }
+  .site-footer__base { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 0.6rem; border-top: 1px solid var(--asphalt-line); padding-top: 1rem; padding-bottom: 1.2rem; font-size: 0.82rem; }
+  .site-footer__base a { display: inline-flex; align-items: center; gap: 0.25rem; }
+  @media (min-width: 900px) {
+    .site-footer { padding-bottom: 0; }
+    .site-footer__inner { grid-template-columns: 1fr 2fr; }
+    .site-footer__cols { grid-template-columns: repeat(4, minmax(0, 1fr)); }
   }
+
+  .tabbar {
+    position: fixed; left: 0; right: 0; bottom: 0; z-index: 90;
+    display: grid; grid-template-columns: repeat(4, 1fr);
+    background: var(--asphalt); border-top: 3px solid var(--yellow);
+    padding-bottom: var(--safe-bottom);
+  }
+  .tabbar__item { display: flex; flex-direction: column; align-items: center; gap: 0.15rem; padding: 0.5rem 0 0.45rem; color: var(--asphalt-muted); font-size: 0.72rem; font-weight: 700; }
+  .tabbar__item.is-active, .tabbar__item:hover { color: var(--yellow); }
+  @media (min-width: 900px) { .tabbar { display: none; } }
 </style>
