@@ -53,22 +53,46 @@ async function addBasemap(map: L.Map, el: HTMLElement): Promise<void> {
   };
   if (!hasWebGL()) return useRaster();
   try {
-    const [{ maplibreGL }] = await Promise.all([import("@maplibre/maplibre-gl-leaflet"), import("maplibre-gl/dist/maplibre-gl.css")]);
+    const [{ maplibreGL }, { setWorkerUrl }, { default: workerUrl }] = await Promise.all([
+      import("@maplibre/maplibre-gl-leaflet"),
+      import("maplibre-gl"),
+      import("maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url"),
+      import("maplibre-gl/dist/maplibre-gl.css"),
+    ]);
+    // MapLibre 6 loads its worker from next to its own file, which bundling moves; without a worker no tiles are
+    // drawn. Point it at the worker Vite builds.
+    setWorkerUrl(workerUrl);
     // The plugin turns MapLibre's own control off and shows this in Leaflet's attribution box.
     const layer = maplibreGL({ style: STYLES[theme()], attributionControl: { customAttribution: VECTOR_ATTRIBUTION } });
     vector = layer.addTo(map);
     const gl = layer.getMaplibreMap();
-    // Errors before the style has loaded mean the style itself failed (OpenFreeMap down or blocked): switch
-    // to raster tiles. Later errors (a missing tile or font) are left to MapLibre.
+    const fallback = (reason: string, detail?: unknown) => {
+      if (!vector) return;
+      console.warn(`[map] ${reason}, using raster tiles`, detail ?? "");
+      useRaster();
+    };
+    // An error before the style has loaded means the style itself failed (OpenFreeMap down or blocked). Later
+    // errors (a missing tile or font) are left to MapLibre.
     let styleLoaded = false;
+    gl.on("error", (e) => { if (!styleLoaded) fallback("vector style unavailable", e.error); });
+    // A worker that cannot start raises no map error and the style never finishes loading; the map just stays
+    // empty. If no tile has been decoded 15 s after the map was created (while the tab is visible), switch to
+    // raster tiles.
+    let tileDecoded = false;
+    let watchdog = 0;
+    const armWatchdog = () => {
+      clearTimeout(watchdog);
+      watchdog = window.setTimeout(() => {
+        if (tileDecoded) return;
+        if (document.hidden) armWatchdog();
+        else fallback("no map tiles decoded");
+      }, 15000);
+    };
+    gl.on("sourcedata", (e) => { if (e.tile) tileDecoded = true; });
+    armWatchdog();
     gl.on("style.load", () => {
       styleLoaded = true;
       localizeLabels(gl);
-    });
-    gl.on("error", (e) => {
-      if (styleLoaded || !vector) return;
-      console.warn("[map] vector style unavailable, using raster tiles", e.error);
-      useRaster();
     });
     document.addEventListener("themechange", () => {
       if (!vector) return;
