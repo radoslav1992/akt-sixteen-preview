@@ -33,6 +33,9 @@ self.addEventListener("fetch", (event) => {
 
   if (request.method !== "GET") return;
 
+  // Account data must never land in Cache Storage, where it would outlive a logout.
+  if (url.pathname.startsWith("/api/auth/") || url.pathname.startsWith("/api/watchlist/")) return;
+
   if (url.pathname.startsWith("/api/")) {
     event.respondWith(networkFirst(request));
     return;

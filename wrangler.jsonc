@@ -9,5 +9,13 @@
 	},
 	"observability": {
 		"enabled": true
-	}
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "akt16",
+			"database_id": "4efa8be0-c21c-4a01-a213-b2e7034059bc",
+			"migrations_dir": "migrations"
+		}
+	]
 }
