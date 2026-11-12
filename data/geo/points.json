@@ -1,7 +1,7 @@
 {
  "version": 1,
- "updatedAt": "2026-11-11T16:05:11.571Z",
- "counts": {"address":1378,"locality":4020,"settlement":4214,"none":6816},
+ "updatedAt": "2026-11-12T16:46:59.964Z",
+ "counts": {"address":1378,"locality":4020,"settlement":4214,"none":6819},
  "points": {
   "act16:1-06012026": [42.71782,23.25901,1],
   "act16:1-16112023": [42.62152,23.43488,1],
