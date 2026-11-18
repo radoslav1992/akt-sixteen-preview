@@ -4,7 +4,7 @@ import Icon from "../../components/Icon.astro";
 import Breadcrumbs from "../../components/Breadcrumbs.astro";
 import { getRegister, getRecords, getUniqueDistricts, recordSlug, slugifyRegion, type RegisterId } from "../../lib/data";
 import { BUILDING_TYPES } from "../../lib/classify";
-import { breadcrumbs } from "../../lib/seo";
+import { breadcrumbs, REGISTER_PAGE_COPY } from "../../lib/seo";
 import { fmtNumber, sentenceCase, truncate } from "../../lib/format";
 
 // Rendered on demand so legacy filter URLs (?region=…) can be permanently redirected
@@ -27,11 +27,7 @@ const records = getRecords(registerId);
 const districts = getUniqueDistricts(registerId);
 const isPermits = registerId === "permits";
 const metaLabel = isPermits ? "Възложител" : "Надзор";
-const pageTitle = isPermits ? "Разрешения за строеж в София — регистър и проверка" : "Акт 16 регистър — удостоверения за въвеждане в експлоатация, София";
-const heading = isPermits ? "Регистър на издадените разрешения за строеж в София" : "Регистър на удостоверенията за въвеждане в експлоатация (Акт 16)";
-const description = isPermits
-  ? "Проверете разрешение за строеж (разрешително) в София по адрес, район, номер или възложител. Търсене и филтри по дата и тип сграда с данни от регистъра на НАГ."
-  : "Търсете Акт 16 в София по адрес, район, номер или идентификатор КККР. Регистър на удостоверенията за въвеждане в експлоатация с данни от НАГ, обновяван ежедневно.";
+const { title: pageTitle, heading, description } = REGISTER_PAGE_COPY[registerId];
 const initialRecords = records.slice(0, 30);
 const officialUrl = isPermits ? "https://nag.sofia.bg/RegisterBuildingPermitsPortal/Index" : "https://nag.sofia.bg/RegisterCertificateForExploitationBuildings";
 const years = [...new Set(records.map((r) => r.date.slice(-4)))].sort();

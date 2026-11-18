@@ -20,6 +20,15 @@ The search landing pages keep their existing paths. The home page targets broad 
 
 Titles that already earned clicks were kept (home H1, permits register title, district titles, document titles).
 
+## November 2026 — decisions from Search Console (to 15 Nov 2026)
+
+| Signal | Change |
+| --- | --- |
+| 22 of 75 inspected sitemap URLs not indexed, almost all `/company/` ("Discovered – currently not indexed" / "URL is unknown") | Company pages need ≥2 documents to exist (unchanged). They are indexable only with ≥3 documents or documents for ≥2 different sites (parcel, else scope text): `isCompanyIndexable()` in `src/lib/companies.ts`. The others (two documents about one parcel, which the document page's property history already shows) render `noindex, follow`, stay linked from their documents and the directory, and are left out of the sitemap by `src/lib/sitemap.ts`, which `astro.config.mjs` loads with Vite's `runnerImport` so both use the same rule. Note: the non-indexed sample included large profiles (35 and 60 documents) and the indexed sample many two-document pages, so crawl priority, not thinness, explains most of it; the sitemap is ~91 % document URLs. |
+| Company pages reachable mainly via the directory and sitemap | Each company page links up to six indexable peers with the same main role and main district (neighbours in the activity ranking), so almost every indexable profile has a link from another profile. District, neighbourhood, home and statistics lists link only indexable profiles. |
+| Low CTR on `/blog/kakvo-e-akt-16/`, `/register/act16/`, `/blog/razreshenie-za-stroezh/` | Answer-first titles ≤ 60 characters and 120–155-character descriptions. Blog posts can set `seoTitle` (full `<title>`, H1 keeps `title`); register copy lives in `REGISTER_PAGE_COPY` (`src/lib/seo.ts`). The home page title and H1 keep "Акт 16 — …" (the page that ranks for "акт 16"). Lengths are tested in `tests/seo.test.ts`. |
+| Slashless static URLs answered with a temporary 307 by the asset handler | `run_worker_first` in `wrangler.jsonc` sends page paths (everything except file types) to the worker, which answers 301 to the slash URL on HTTPS (`trailingSlashRedirect()`) and otherwise serves the static page from `ASSETS`. Static page views now count as worker requests; if that ever matters, replace it with a Cloudflare Redirect Rule (path without "/" and without "." → 301 to path + "/") and remove the setting. Do not add a negative `"!/*/"` rule: negative rules never fall back to the worker and would 404 the on-demand pages. |
+
 ## Deployment and Search Console
 
 1. Enable **SSL/TLS → Edge Certificates → Always Use HTTPS** for `akt16.org` in Cloudflare. GSC still lists `http://` URLs. The worker middleware redirects HTTP for on-demand pages, but static pages are served directly by Cloudflare, so only the dashboard setting covers every URL.
@@ -38,6 +47,6 @@ Titles that already earned clicks were kept (home H1, permits register title, di
 
 ## Verification
 
-Run `npm test`, `npm run build`, then `node scripts/check-seo.mjs` (every static page: one h1, self canonical, description, no broken internal links, no legacy filter links, sitemap coverage). With `wrangler dev` running, run `node scripts/check-worker.mjs http://localhost:8787` for the on-demand pages and redirects.
+Run `npm test`, `npm run build`, then `node scripts/check-seo.mjs` (every static page: one h1, self canonical, description, no broken or slashless internal links, no legacy filter links, no `http://` links, sitemap coverage, no `noindex` page in the sitemap). With `wrangler dev` running, run `node scripts/check-worker.mjs http://localhost:8787` for the on-demand pages and redirects.
 
 Reference: [Google canonical URL guidance](https://developers.google.com/search/docs/crawling-indexing/consolidate-duplicate-urls), [Astro sitemap integration](https://docs.astro.build/en/guides/integrations-guide/sitemap/).

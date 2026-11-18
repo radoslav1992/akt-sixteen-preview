@@ -5,6 +5,12 @@ import sitemap from '@astrojs/sitemap';
 
 import cloudflare from '@astrojs/cloudflare';
 import { readFileSync } from 'node:fs';
+import { fileURLToPath } from 'node:url';
+import { runnerImport } from 'vite';
+
+// The sitemap uses the same indexing rule as the page heads (src/lib/sitemap.ts → companies.ts).
+// Vite loads the TypeScript module so it reads data/*.json exactly as the pages do.
+const { module: sitemapRules } = await runnerImport(fileURLToPath(new URL('./src/lib/sitemap.ts', import.meta.url)));
 
 // Individual records and the register search pages are rendered on demand,
 // so Astro cannot discover them itself.
@@ -29,7 +35,7 @@ export default defineConfig({
   security: { checkOrigin: false },
   integrations: [sitemap({
     customPages: [...new Set([...onDemandPages, ...recordPages])],
-    filter: (page) => !/\/account\/|\/404\/?$/.test(page),
+    filter: (page) => sitemapRules.includeInSitemap(page),
     // A document never changes after it is issued, so its issue date is an honest lastmod.
     serialize: (item) => (recordDates.has(item.url) ? { ...item, lastmod: recordDates.get(item.url) } : item),
   })],

@@ -1,7 +1,7 @@
 // Company directory built from the "Възложител" (permits) and "Строителен надзор" (Акт 16) fields.
 // Only legal entities and public bodies get pages: private individuals named in the
 // registers are never turned into profiles.
-import { getRecords, recordSlug, type Record, type RegisterId } from "./data";
+import { extractCadastreIds, getRecords, parcelIdOf, recordSlug, type Record, type RegisterId } from "./data";
 import { dateKey, slugify } from "./format";
 
 export type CompanyRole = "employer" | "oversight";
@@ -29,8 +29,18 @@ export interface Company extends CompanyRef {
   publicBody: boolean;
 }
 
-/** Minimum number of documents before a company gets its own indexable page. */
+/** Minimum number of documents before a company gets its own page. */
 export const COMPANY_PAGE_MIN_DOCS = 2;
+
+/**
+ * A company page is indexable when it shows at least this many documents, or documents for at least
+ * COMPANY_INDEX_MIN_SITES different sites. A page with two documents about one parcel repeats the
+ * property history that the document page already shows, so it stays reachable but `noindex, follow`.
+ * The page head (src/pages/company/[slug].astro) and the sitemap (src/lib/sitemap.ts) both use
+ * isCompanyIndexable(); do not re-implement the rule elsewhere.
+ */
+export const COMPANY_INDEX_MIN_DOCS = 3;
+export const COMPANY_INDEX_MIN_SITES = 2;
 
 // Legal forms, tolerating Latin look-alike letters that appear in the source data ("EООД").
 const FORM_PATTERN = "[АA]ДСИЦ|[ЕE][ОO][ОO]Д|ДЗЗД|[ОO][ОO]Д|[ЕE][АA]Д|[КK]Д[АA]|[АA]Д|[КK]Д|[СC]Д";
@@ -143,10 +153,12 @@ export function getCompanyIndex(): Map<string, Company> {
 }
 
 /** Companies that get a page, most active first. */
+let listedCache: Company[] | null = null;
+
 export function getListedCompanies(): Company[] {
-  return [...getCompanyIndex().values()]
+  return (listedCache ??= [...getCompanyIndex().values()]
     .filter((c) => c.docs.length >= COMPANY_PAGE_MIN_DOCS)
-    .sort((a, b) => b.docs.length - a.docs.length || a.name.localeCompare(b.name, "bg"));
+    .sort((a, b) => b.docs.length - a.docs.length || a.name.localeCompare(b.name, "bg"))).slice();
 }
 
 export function hasCompanyPage(slug: string): boolean {
@@ -154,8 +166,42 @@ export function hasCompanyPage(slug: string): boolean {
   return !!company && company.docs.length >= COMPANY_PAGE_MIN_DOCS;
 }
 
+/** The site a document is about: its first cadastral parcel, or else its normalised scope text. */
+export function siteKey(record: Record): string {
+  const ids = extractCadastreIds(record.scope);
+  if (ids.length) return `parcel:${parcelIdOf(ids[0])}`;
+  return `scope:${record.scope.toLocaleLowerCase("bg-BG").replace(/\s+/g, " ").trim()}`;
+}
+
+const siteCounts = new WeakMap<Company, number>();
+
+export function companySiteCount(company: Company): number {
+  let n = siteCounts.get(company);
+  if (n === undefined) siteCounts.set(company, (n = new Set(company.docs.map((d) => siteKey(d.record))).size));
+  return n;
+}
+
+/** The single rule for whether a company page may be indexed and listed in the sitemap. */
+export function isCompanyIndexable(company: Company): boolean {
+  const docs = company.docs.length;
+  if (docs < COMPANY_PAGE_MIN_DOCS) return false;
+  return docs >= COMPANY_INDEX_MIN_DOCS || companySiteCount(company) >= COMPANY_INDEX_MIN_SITES;
+}
+
+/** Companies whose pages are indexable, most active first. */
+let indexableCache: Company[] | null = null;
+
+export function getIndexableCompanies(): Company[] {
+  return (indexableCache ??= getListedCompanies().filter(isCompanyIndexable));
+}
+
+export function isCompanyPathIndexable(slug: string): boolean {
+  const company = getCompanyIndex().get(slug);
+  return !!company && isCompanyIndexable(company);
+}
+
 export function topCompanies(role: CompanyRole, limit = 10, sinceYear?: number): Array<{ company: Company; count: number }> {
-  return getListedCompanies()
+  return getIndexableCompanies()
     .filter((c) => !c.publicBody)
     .map((company) => ({
       company,
@@ -168,4 +214,26 @@ export function topCompanies(role: CompanyRole, limit = 10, sinceYear?: number):
 
 export function companyDocUrl(doc: CompanyDoc): string {
   return `/register/${doc.registerId}/${recordSlug(doc.record)}/`;
+}
+
+export function mainRole(company: Company): CompanyRole {
+  return company.employerCount >= company.oversightCount ? "employer" : "oversight";
+}
+
+/**
+ * Indexable companies with the same main role and main district, taken from around the company's
+ * place in the activity ranking. Every company in a district then links to its neighbours, so
+ * smaller profiles get links from other profiles and not only from the directory and the sitemap.
+ */
+export function relatedCompanies(company: Company, limit = 6): Company[] {
+  const region = company.regions[0]?.[0];
+  if (!region || company.publicBody) return [];
+  const role = mainRole(company);
+  const peers = getIndexableCompanies().filter((c) => !c.publicBody && c.regions[0]?.[0] === region && mainRole(c) === role);
+  let at = peers.indexOf(company);
+  if (at < 0) at = peers.findIndex((c) => c.docs.length <= company.docs.length);
+  if (at < 0) at = peers.length;
+  const others = peers.filter((c) => c !== company);
+  const start = Math.max(0, Math.min(at - Math.floor(limit / 2), others.length - limit));
+  return others.slice(start, start + limit);
 }
