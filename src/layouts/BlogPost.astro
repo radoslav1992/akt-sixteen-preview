@@ -7,6 +7,8 @@ import { breadcrumbs, canonicalUrl, SITE_URL } from "../lib/seo";
 
 interface Props {
   title: string;
+  /** Full <title> tag; defaults to "<title> | Акт 16". */
+  seoTitle?: string;
   description: string;
   date: Date;
   updatedDate?: Date;
@@ -17,7 +19,7 @@ interface Props {
   related?: Array<{ title: string; href: string }>;
 }
 
-const { title, description, date, updatedDate, tags, faq = [], lang = "bg", alternates = [], related = [] } = Astro.props;
+const { title, seoTitle, description, date, updatedDate, tags, faq = [], lang = "bg", alternates = [], related = [] } = Astro.props;
 const locale = { bg: "bg-BG", en: "en-GB", ru: "ru-RU" }[lang];
 const formattedDate = date.toLocaleDateString(locale, { day: "numeric", month: "long", year: "numeric" });
 const isoDate = date.toISOString();
@@ -47,7 +49,7 @@ const faqLd = faq.length
 const crumbs = [{ name: t.home, path: "/" }, { name: t.blog, path: "/blog/" }, { name: title, path: Astro.url.pathname }];
 ---
 
-<Base title={`${title} | Акт 16`} description={description} type="article" lang={lang} alternates={alternates}
+<Base title={seoTitle ?? `${title} | Акт 16`} description={description} type="article" lang={lang} alternates={alternates}
   structuredData={[article, breadcrumbs(crumbs), ...(faqLd ? [faqLd] : [])]}>
   <Breadcrumbs items={[{ name: t.home, path: "/" }, { name: t.blog, path: "/blog/" }, { name: title }]} />
 

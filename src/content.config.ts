@@ -7,6 +7,8 @@ const blog = defineCollection({
   loader: glob({ pattern: "**/*.md", base: "./src/content/blog" }),
   schema: z.object({
     title: z.string(),
+    /** Full <title> for search results when it should differ from the H1 (≤ 60 characters, no suffix added). */
+    seoTitle: z.string().max(60).optional(),
     description: z.string(),
     date: z.coerce.date(),
     updatedDate: z.coerce.date().optional(),
