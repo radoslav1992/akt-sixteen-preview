@@ -91,9 +91,19 @@ const walk = (d) => readdirSync(join(dir, d), { withFileTypes: true }).forEach((
 });
 walk('');
 const broken = new Map();
+const slashless = new Map();
+const noindexed = [];
 for (const file of htmlFiles) {
   const $ = load(read(file));
   const path = '/' + file.replace(/index\.html$/, '');
+  const robots = $('meta[name=robots]').attr('content');
+  if (robots) {
+    assert.equal(robots, 'noindex, follow', `${path} robots`);
+    noindexed.push(path);
+    assert(!sitemapUrls.has(`https://akt16.org${path}`), `${path} is noindex but listed in the sitemap`);
+  } else if (/^\/company\/[^/]+\/$/.test(path)) {
+    assert(sitemapUrls.has(`https://akt16.org${path}`), `Indexable company page ${path} missing from the sitemap`);
+  }
   assert.equal($('h1').length, 1, `${path} must have exactly one h1`);
   assert($('title').text().length > 10, `${path} needs a title`);
   assert(($('meta[name=description]').attr('content') ?? '').length > 40, `${path} needs a description`);
@@ -102,10 +112,16 @@ for (const file of htmlFiles) {
     const href = $(a).attr('href');
     if (href.startsWith('//')) return;
     assert(!/[?&]region=/.test(href), `${path} links to a legacy filter URL ${href}`);
+    const hrefPath = href.split(/[?#]/)[0];
+    if (!hrefPath.endsWith('/') && !/\.[a-z0-9]+$/i.test(hrefPath)) slashless.set(href, path);
     if (!exists(href)) broken.set(href, path);
   });
 }
+assert.equal(slashless.size, 0, `Internal links without a trailing slash: ${[...slashless].slice(0, 10).map(([h, p]) => `${h} (on ${p})`).join(', ')}`);
+const noindexCompanies = noindexed.filter((p) => p.startsWith('/company/')).length;
+assert(noindexCompanies > 0, 'Expected some thin company pages to be noindexed');
+for (const file of htmlFiles) assert(!/href="http:\/\//.test(read(file)), `${file} links to an http:// URL`);
 assert.equal(broken.size, 0, `Broken internal links: ${[...broken].slice(0, 10).map(([h, p]) => `${h} (on ${p})`).join(', ')}`);
 
 assert(read('robots.txt').includes('Sitemap: https://akt16.org/sitemap-index.xml'));
-console.log(`SEO checks passed: ${documents} records linked in archives and sitemap; ${htmlFiles.length} static pages with one h1, canonical and description; no broken internal links; 24 districts with crawlable register lists.`);
+console.log(`SEO checks passed: ${sitemapUrls.size} sitemap URLs; ${noindexed.length} noindex pages (${noindexCompanies} companies), none in the sitemap; ${documents} records linked in archives and sitemap; ${htmlFiles.length} static pages with one h1, canonical and description; no broken internal links; 24 districts with crawlable register lists.`);

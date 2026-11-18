@@ -6,7 +6,7 @@ import DocRow from "../../components/DocRow.astro";
 import YearBars from "../../components/YearBars.astro";
 import BarList from "../../components/BarList.astro";
 import { breadcrumbs } from "../../lib/seo";
-import { getListedCompanies, type Company } from "../../lib/companies";
+import { getListedCompanies, isCompanyIndexable, mainRole, relatedCompanies, type Company } from "../../lib/companies";
 import { slugifyRegion } from "../../lib/data";
 import { classify, BUILDING_TYPES } from "../../lib/classify";
 import { countBy, yearOf } from "../../lib/stats";
@@ -21,6 +21,9 @@ const permits = company.docs.filter((d) => d.registerId === "permits");
 const certs = company.docs.filter((d) => d.registerId === "act16");
 const years = `${company.firstDate.slice(-4)}${company.firstDate.slice(-4) !== company.lastDate.slice(-4) ? `–${company.lastDate.slice(-4)}` : ""}`;
 const types = countBy(company.docs.map((d) => d.record), classify);
+const indexable = isCompanyIndexable(company);
+const related = relatedCompanies(company);
+const relatedRegion = company.regions[0]?.[0];
 const role = company.publicBody ? "public" : company.employerCount && company.oversightCount ? "both" : company.employerCount ? "employer" : "oversight";
 
 const title = {
@@ -55,7 +58,7 @@ const profile = {
 };
 ---
 
-<Base title={title} description={description} structuredData={[profile, breadcrumbs([{ name: "Начало", path: "/" }, { name: "Фирми", path: "/company/" }, { name: company.display, path: Astro.url.pathname }])]}>
+<Base title={title} description={description} noindex={!indexable} structuredData={[profile, breadcrumbs([{ name: "Начало", path: "/" }, { name: "Фирми", path: "/company/" }, { name: company.display, path: Astro.url.pathname }])]}>
   <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "Фирми", path: "/company/" }, { name: company.display }]} />
 
   <header class="page-head company-head">
@@ -105,6 +108,18 @@ const profile = {
       </div>
     ))}
   </section>
+
+  {related.length > 0 && relatedRegion && (
+    <section class="section" aria-labelledby="related-title">
+      <div class="section-head">
+        <h2 id="related-title">{mainRole(company) === "employer" ? "Други възложители" : "Други фирми за строителен надзор"} в район {relatedRegion}</h2>
+        <a class="section-head__link" href={`/region/${slugifyRegion(relatedRegion)}/`}>Район {relatedRegion}</a>
+      </div>
+      <div class="chip-row">
+        {related.map((c) => <a class="chip" href={`/company/${c.slug}/`}>{c.display} <span class="chip__count">{c.docs.length}</span></a>)}
+      </div>
+    </section>
+  )}
 
   <p class="notice notice--info company-note">Профилът е съставен автоматично от публичните регистри на НАГ — Столична община. Akt16.org не е свързан с фирмата. Ако откриете неточност, пишете на <a href="mailto:info@akt16.org">info@akt16.org</a>.</p>
 </Base>

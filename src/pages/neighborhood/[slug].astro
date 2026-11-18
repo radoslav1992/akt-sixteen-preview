@@ -11,7 +11,7 @@ import { breadcrumbs } from "../../lib/seo";
 import { slugifyRegion, type Record, type RegisterId } from "../../lib/data";
 import { getListedNeighborhoods, neighborhoodLabel, type NeighborhoodSummary } from "../../lib/places";
 import { classify, BUILDING_TYPES } from "../../lib/classify";
-import { companiesInRecord, hasCompanyPage, getCompanyIndex } from "../../lib/companies";
+import { companiesInRecord, isCompanyPathIndexable, getCompanyIndex } from "../../lib/companies";
 import { byYear, countBy, sortByDateDesc } from "../../lib/stats";
 import { fmtNumber, dateKey } from "../../lib/format";
 
@@ -33,7 +33,7 @@ const types = countBy([...act16, ...permits], classify);
 const multiNew = act16.filter((r) => classify(r) === "multi").slice(0, 6);
 
 const companyCounts = new Map<string, number>();
-for (const { registerId, record } of all) for (const c of companiesInRecord(record, registerId)) if (hasCompanyPage(c.slug) && c.form) companyCounts.set(c.slug, (companyCounts.get(c.slug) ?? 0) + 1);
+for (const { registerId, record } of all) for (const c of companiesInRecord(record, registerId)) if (isCompanyPathIndexable(c.slug) && c.form) companyCounts.set(c.slug, (companyCounts.get(c.slug) ?? 0) + 1);
 const topCompanies = [...companyCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([s, n]) => ({ c: getCompanyIndex().get(s)!, n }));
 
 const isVillage = hood.kind === "с." || hood.kind === "гр.";

@@ -10,7 +10,7 @@ import BarList from "../../components/BarList.astro";
 import { breadcrumbs } from "../../lib/seo";
 import { findRegionBySlug, getRegionRecords, getAllRegionsWithSlugs } from "../../lib/data";
 import { getListedNeighborhoods, neighborhoodLabel } from "../../lib/places";
-import { companiesInRecord, hasCompanyPage, getCompanyIndex } from "../../lib/companies";
+import { companiesInRecord, isCompanyPathIndexable, getCompanyIndex } from "../../lib/companies";
 import { classify, BUILDING_TYPES } from "../../lib/classify";
 import { pipelineMatches, durationStats } from "../../lib/parcels";
 import { byYear, countBy, inLastDays } from "../../lib/stats";
@@ -38,7 +38,7 @@ const residentialShare = Math.round((((types.get("multi") ?? 0) + (types.get("si
 
 function topParties(registerId: "permits" | "act16", records: typeof act16) {
   const counts = new Map<string, number>();
-  for (const r of records) for (const c of companiesInRecord(r, registerId)) if (!c.form.length ? false : hasCompanyPage(c.slug)) counts.set(c.slug, (counts.get(c.slug) ?? 0) + 1);
+  for (const r of records) for (const c of companiesInRecord(r, registerId)) if (c.form.length && isCompanyPathIndexable(c.slug)) counts.set(c.slug, (counts.get(c.slug) ?? 0) + 1);
   return [...counts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 6).map(([s, n]) => ({ company: getCompanyIndex().get(s)!, n }));
 }
 const topEmployers = topParties("permits", permits);
