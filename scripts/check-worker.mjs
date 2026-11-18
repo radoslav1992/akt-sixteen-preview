@@ -37,6 +37,15 @@ for (const [id, key] of [['act16', 'certificates'], ['permits', 'permits']]) {
   assert.equal((await get(`/register/${id}/0-01011900/`)).status, 404);
 }
 assert.equal((await get('/register/unknown/')).status, 404);
+
+// Static pages: one URL form. Slashless paths get a permanent redirect (not the asset handler's 307).
+for (const path of ['/check', '/blog/kakvo-e-akt-16', '/company']) {
+  const res = await get(path);
+  assert.equal(res.status, 301, `${path} must 301`);
+  assert.equal(new URL(res.headers.get('location'), base).pathname, `${path}/`);
+  assert.equal((await get(`${path}/`)).status, 200, `${path}/`);
+}
+for (const path of ['/sitemap-index.xml', '/robots.txt', '/api/act16.json']) assert.equal((await get(path)).status, 200, path);
 const me = await (await get('/api/auth/me/')).json();
 assert('user' in me || me.error === 'accounts_unavailable');
 console.log(`Worker checks passed against ${base}.`);

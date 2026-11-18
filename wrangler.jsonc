@@ -5,7 +5,12 @@
 	"main": "./src/worker.ts",
 	"assets": {
 		"directory": "./dist",
-		"binding": "ASSETS"
+		"binding": "ASSETS",
+		// Page paths go to the worker first, so "/check" gets a permanent 301 to "/check/" (src/lib/seo.ts)
+		// instead of the asset handler's temporary 307; the worker then serves the static page from ASSETS.
+		// Files are served directly. Negative rules always win and never fall back to the worker, so they
+		// list file types only (a "!/*/" rule would 404 the on-demand register and document pages).
+		"run_worker_first": ["/*", "!/_astro/*", "!/*.css", "!/*.js", "!/*.json", "!/*.xml", "!/*.txt", "!/*.csv", "!/*.zip", "!/*.png", "!/*.svg", "!/*.ico", "!/*.woff2", "!/*.html"]
 	},
 	"observability": {
 		"enabled": true

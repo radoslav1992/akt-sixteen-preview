@@ -25,7 +25,7 @@ describe("search metadata", () => {
 });
 
 import { readFileSync } from "node:fs";
-import { REGISTER_PAGE_COPY } from "../src/lib/seo";
+import { REGISTER_PAGE_COPY, trailingSlashRedirect } from "../src/lib/seo";
 
 const frontmatter = (slug: string) => {
   const text = readFileSync(new URL(`../src/content/blog/${slug}.md`, import.meta.url), "utf8");
@@ -60,3 +60,16 @@ describe("Act 16 explainer titles", () => {
   });
 });
 
+describe("trailing-slash redirects", () => {
+  const go = (url: string, method = "GET") => trailingSlashRedirect(new Request(url, { method }));
+  it("301s slashless page paths to the slash form on https", () => {
+    const res = go("http://akt16.org/check?q=1");
+    expect(res?.status).toBe(301);
+    expect(res?.headers.get("Location")).toBe("https://akt16.org/check/?q=1");
+    expect(go("https://akt16.org/company/sm-kontrol-eood")?.headers.get("Location")).toBe("https://akt16.org/company/sm-kontrol-eood/");
+  });
+  it("leaves slash URLs, files and non-GET requests alone", () => {
+    for (const url of ["https://akt16.org/", "https://akt16.org/check/", "https://akt16.org/sitemap-index.xml", "https://akt16.org/api/act16.json", "https://akt16.org/cdn-cgi/trace"]) expect(go(url)).toBeNull();
+    expect(go("https://akt16.org/api/auth/login", "POST")).toBeNull();
+  });
+});

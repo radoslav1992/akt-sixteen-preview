@@ -25,6 +25,21 @@ export function breadcrumbs(items: { name: string; path: string }[]) {
   };
 }
 
+/**
+ * One URL form: every page ends in a slash. Cloudflare's asset handler answers "/check" with a
+ * temporary 307, so the worker runs first for slashless paths (wrangler.jsonc → run_worker_first)
+ * and answers with a permanent redirect instead, upgrading http to https on the way.
+ */
+export function trailingSlashRedirect(request: Request): Response | null {
+  if (request.method !== "GET" && request.method !== "HEAD") return null;
+  const url = new URL(request.url);
+  const last = url.pathname.slice(url.pathname.lastIndexOf("/") + 1);
+  if (!last || last.includes(".") || url.pathname.startsWith("/cdn-cgi/")) return null;
+  url.pathname += "/";
+  if (url.hostname === "akt16.org") url.protocol = "https:";
+  return new Response(null, { status: 301, headers: { Location: url.href } });
+}
+
 /** Title, H1 and description of the two register search pages (tested for length in tests/seo.test.ts). */
 export const REGISTER_PAGE_COPY = {
   permits: {
