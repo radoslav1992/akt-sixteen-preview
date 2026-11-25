@@ -27,10 +27,15 @@ export const GET: APIRoute = () => {
 - [${getListedCompanies().length} фирми: инвеститори и строителен надзор](https://akt16.org/company/)
 
 ## Ръководства
-- [Какво е Акт 16](https://akt16.org/blog/kakvo-e-akt-16/)
+- [Какво е Акт 16 и кой го издава](https://akt16.org/blog/kakvo-e-akt-16/)
 - [Проверка за Акт 16 по адрес](https://akt16.org/blog/proverka-akt-16-online/)
 - [Акт 16 образец](https://akt16.org/blog/akt-16-obrazets/)
-- [Акт 14, 15 и 16](https://akt16.org/blog/etapi-na-stroitelstvo-akt-14-15-16/)
+- [Акт 14, 15 и 16: разлики за купувача](https://akt16.org/blog/etapi-na-stroitelstvo-akt-14-15-16/)
+- [Изисквания за Акт 16](https://akt16.org/blog/iziskvaniya-za-akt-16/)
+- [Копие на Акт 16](https://akt16.org/blog/kopie-na-akt-16/)
+- [Акт 16 за къща](https://akt16.org/blog/akt-16-za-kashta/)
+- [Къща без Акт 16](https://akt16.org/blog/kashta-bez-akt-16/)
+- [Акт 16 за гараж](https://akt16.org/blog/akt-16-za-garazh/)
 - [Разрешение за строеж](https://akt16.org/blog/razreshenie-za-stroezh/)
 - [Разрешение за ползване и удостоверение](https://akt16.org/blog/razreshenie-za-polzvane/)
 - [От разрешение до Акт 16 — срокове](https://akt16.org/blog/ot-razreshenie-do-akt-16/)

@@ -29,6 +29,22 @@ Titles that already earned clicks were kept (home H1, permits register title, di
 | Low CTR on `/blog/kakvo-e-akt-16/`, `/register/act16/`, `/blog/razreshenie-za-stroezh/` | Answer-first titles ≤ 60 characters and 120–155-character descriptions. Blog posts can set `seoTitle` (full `<title>`, H1 keeps `title`); register copy lives in `REGISTER_PAGE_COPY` (`src/lib/seo.ts`). The home page title and H1 keep "Акт 16 — …" (the page that ranks for "акт 16"). Lengths are tested in `tests/seo.test.ts`. |
 | Slashless static URLs answered with a temporary 307 by the asset handler | `run_worker_first` in `wrangler.jsonc` sends page paths (everything except file types) to the worker, which answers 301 to the slash URL on HTTPS (`trailingSlashRedirect()`) and otherwise serves the static page from `ASSETS`. Static page views now count as worker requests; if that ever matters, replace it with a Cloudflare Redirect Rule (path without "/" and without "." → 301 to path + "/") and remove the setting. Do not add a negative `"!/*/"` rule: negative rules never fall back to the worker and would 404 the on-demand pages. |
 
+## November 2026 — Google's follow-up searches for "акт 16"
+
+akt16.org is the first organic result for "акт 16". Google offers these refinements: Проверка, Регистър, Образец, Кой издава, За къща, Къща без, Изисквания, За гараж, София, Копие на, Акт 15 и.
+
+| Refinement | Page |
+| --- | --- |
+| За гараж | New guide `/blog/akt-16-za-garazh/` |
+| Къща без | New guide `/blog/kashta-bez-akt-16/` |
+| Копие на | New guide `/blog/kopie-na-akt-16/` |
+| Изисквания | New guide `/blog/iziskvaniya-za-akt-16/` |
+| Кой издава | Section `/blog/kakvo-e-akt-16/#koy-izdava` (by category, answer first); the other guides link to the anchor |
+| Акт 15 и | `/blog/etapi-na-stroitelstvo-akt-14-15-16/` retitled "Акт 14, Акт 15 и Акт 16: разлики …", with a comparison table and what buying at "груб строеж" means |
+| Проверка | `/blog/proverka-akt-16-online/` explains the property check and the register field by field (keep it in step with `src/scripts/check.ts`) |
+
+`tests/seo.test.ts` checks these guides' title and description lengths, FAQ count and links to the register, `/check/` and `/map/`, that every `/blog/` link and anchor between guides resolves, and that each new guide is linked from at least two others. `check-seo.mjs` checks that they are built, in the sitemap, on the blog index and in `llms.txt`, and that `#…` links to guides point at an existing id. Word counts: `wc -w` in the C locale skips Cyrillic words, so count with `LC_ALL=C.UTF-8`.
+
 ## Deployment and Search Console
 
 1. Enable **SSL/TLS → Edge Certificates → Always Use HTTPS** for `akt16.org` in Cloudflare. GSC still lists `http://` URLs. The worker middleware redirects HTTP for on-demand pages, but static pages are served directly by Cloudflare, so only the dashboard setting covers every URL.
