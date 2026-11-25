@@ -59,17 +59,40 @@ for (const slug of [...districtLinks].map((h) => h.split('/')[2])) {
   }
 }
 
-for (const slug of ['kakvo-e-akt-16', 'proverka-akt-16-online', 'razreshenie-za-stroezh', 'etapi-na-stroitelstvo-akt-14-15-16']) {
+// Current modification dates of the core guides: update them together with the articles' updatedDate.
+const coreGuides = {
+  'kakvo-e-akt-16': '2026-11-25',
+  'proverka-akt-16-online': '2026-11-25',
+  'razreshenie-za-stroezh': '2026-10-16',
+  'etapi-na-stroitelstvo-akt-14-15-16': '2026-11-25',
+};
+for (const [slug, modified] of Object.entries(coreGuides)) {
   const $ = load(read(`blog/${slug}/index.html`));
   assert.equal($('h1').length, 1, slug);
   const data = $('script[type="application/ld+json"]').map((_, s) => JSON.parse($(s).text())).get();
   const post = data.find((d) => d['@type'] === 'BlogPosting');
-  assert.equal(post.dateModified, '2026-10-16T00:00:00.000Z');
+  assert.equal(post.dateModified, `${modified}T00:00:00.000Z`, slug);
   assert.equal(post.mainEntityOfPage, `https://akt16.org/blog/${slug}/`);
   assert.equal($('meta[property="og:type"]').attr('content'), 'article');
 }
 const definition = load(read('blog/kakvo-e-akt-16/index.html'));
 assert.deepEqual(definition('link[rel=alternate][hreflang]').map((_, l) => definition(l).attr('hreflang')).get().sort(), ['bg', 'en', 'ru', 'x-default']);
+assert.equal(definition('h2#koy-izdava').length, 1, 'The definition guide keeps the #koy-izdava anchor');
+
+// Guides for Google's follow-up searches on „акт 16“ (November 2026): built, in the sitemap, FAQPage data,
+// listed on the blog index and in llms.txt.
+const blogIndex = read('blog/index.html');
+const llms = read('llms.txt');
+for (const slug of ['akt-16-za-garazh', 'kashta-bez-akt-16', 'kopie-na-akt-16', 'iziskvaniya-za-akt-16']) {
+  const url = `https://akt16.org/blog/${slug}/`;
+  assert(sitemapUrls.has(url), `Sitemap missing ${url}`);
+  const $ = load(read(`blog/${slug}/index.html`));
+  assert.equal($('h1').length, 1, slug);
+  const types = $('script[type="application/ld+json"]').map((_, s) => JSON.parse($(s).text())['@type']).get();
+  assert(types.includes('BlogPosting') && types.includes('FAQPage'), `${slug} structured data`);
+  assert(blogIndex.includes(`href="/blog/${slug}/"`), `Blog index missing ${slug}`);
+  assert(llms.includes(url), `llms.txt missing ${slug}`);
+}
 
 // Every static page: one h1, a self-referencing HTTPS canonical, a title and a description.
 // Every internal link must resolve to a built file or a known on-demand route.
@@ -115,6 +138,10 @@ for (const file of htmlFiles) {
     const hrefPath = href.split(/[?#]/)[0];
     if (!hrefPath.endsWith('/') && !/\.[a-z0-9]+$/i.test(hrefPath)) slashless.set(href, path);
     if (!exists(href)) broken.set(href, path);
+    else if (/^\/blog\/[^/]+\/#./.test(href)) {
+      const [target, hash] = href.split('#');
+      if (!load(read(`${target.slice(1)}index.html`))(`[id="${hash}"]`).length) broken.set(href, path);
+    }
   });
 }
 assert.equal(slashless.size, 0, `Internal links without a trailing slash: ${[...slashless].slice(0, 10).map(([h, p]) => `${h} (on ${p})`).join(', ')}`);
