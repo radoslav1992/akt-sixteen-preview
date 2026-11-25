@@ -108,7 +108,7 @@ const crumbs = [{ name: t.home, path: "/" }, { name: t.blog, path: "/blog/" }, {
 </Base>
 
 <style>
-  .post-layout { display: grid; gap: 2rem; }
+  .post-layout { display: grid; gap: 2rem; grid-template-columns: minmax(0, 1fr); }
   @media (min-width: 1080px) { .post-layout { grid-template-columns: minmax(0, 740px) 1fr; gap: 3.5rem; } }
   .post__header { padding: 1rem 0 1.5rem; border-bottom: 2px solid var(--ink); margin-bottom: 2rem; }
   .post__meta { font-size: 0.88rem; color: var(--muted); display: flex; flex-wrap: wrap; gap: 0.35rem; font-weight: 600; }
