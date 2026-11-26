@@ -13,12 +13,15 @@ export interface Mail {
   html: string;
   text: string;
   headers?: Record<string, string>;
+  /** Defaults to the site's contact address. */
+  replyTo?: string;
 }
 
 export type SendResult = { ok: true; id: string } | { ok: false; code: string; message: string };
 
 const FROM_NAME = "Акт 16 Тракер";
-const REPLY_TO = "info@akt16.org";
+/** The site's contact address: reply-to of every email and recipient of owner notifications. */
+export const CONTACT_EMAIL = "info@akt16.org";
 
 /** Errors meaning the sending domain is not set up: retrying other recipients will not help. */
 export const FATAL_SEND_ERRORS = new Set(["E_SENDER_NOT_VERIFIED", "E_SENDER_DOMAIN_NOT_AVAILABLE", "E_DAILY_LIMIT_EXCEEDED"]);
@@ -29,7 +32,7 @@ export async function sendMail(env: MailEnv, mail: Mail): Promise<SendResult> {
     const result = await env.EMAIL.send({
       from: { email: env.EMAIL_FROM || "noreply@akt16.org", name: FROM_NAME },
       to: mail.to,
-      replyTo: REPLY_TO,
+      replyTo: mail.replyTo ?? CONTACT_EMAIL,
       subject: mail.subject,
       html: mail.html,
       text: mail.text,

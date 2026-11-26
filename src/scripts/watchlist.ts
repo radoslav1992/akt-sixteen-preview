@@ -21,6 +21,8 @@ export interface SessionUser {
 
 const ITEMS_KEY = "akt16:watch";
 const USER_KEY = "akt16:user";
+const INTENT_KEY = "akt16:follow-intent";
+const INTENT_MAX_AGE = 7 * 24 * 60 * 60 * 1000;
 const listeners = new Set<() => void>();
 
 function read<T>(key: string, fallback: T): T {
@@ -59,6 +61,24 @@ export function setCachedUser(user: SessionUser | null): void {
 
 export function onChange(fn: () => void): void {
   listeners.add(fn);
+}
+
+/* The item a guest last pressed „Извести ме по имейл“ on. The account page offers registration for it,
+   sends it along with the new account and afterwards confirms that it is followed. */
+
+export function setFollowIntent(item: WatchItem): void {
+  write(INTENT_KEY, { kind: item.kind, key: item.key, label: item.label, url: item.url, at: Date.now() });
+}
+
+export function getFollowIntent(): WatchItem | null {
+  const intent = read<(WatchItem & { at?: number }) | null>(INTENT_KEY, null);
+  if (!intent || typeof intent.key !== "string" || typeof intent.label !== "string" || typeof intent.url !== "string") return null;
+  if (!intent.url.startsWith("/") || intent.url.startsWith("//") || Date.now() - (intent.at ?? 0) > INTENT_MAX_AGE) return null;
+  return { kind: intent.kind, key: intent.key, label: intent.label, url: intent.url };
+}
+
+export function clearFollowIntent(): void {
+  write(INTENT_KEY, null);
 }
 
 export function isWatched(kind: WatchKind, key: string): boolean {
@@ -109,6 +129,8 @@ export async function refreshSession(): Promise<SessionUser | null> {
     const { user } = await api<{ user: SessionUser | null }>("GET", "/api/auth/me/");
     setCachedUser(user);
     if (user) {
+      // Signed in: nothing is left to finish for an earlier guest click.
+      clearFollowIntent();
       const { items } = await api<{ items: WatchItem[] }>("GET", "/api/watchlist/");
       setItems(items);
     }
@@ -119,13 +141,14 @@ export async function refreshSession(): Promise<SessionUser | null> {
 }
 
 export const auth = {
-  register: (email: string, password: string, name?: string, emailAlerts = true) =>
-    api<{ user: SessionUser }>("POST", "/api/auth/register/", { email, password, name, email_alerts: emailAlerts }),
+  /** `follow`: the item the visitor asked to be alerted about; it is put on the new account's watchlist. */
+  register: (email: string, password: string, name?: string, emailAlerts = true, follow?: WatchItem) =>
+    api<{ user: SessionUser }>("POST", "/api/auth/register/", { email, password, name, email_alerts: emailAlerts, ...(follow ? { follow } : {}) }),
   login: (email: string, password: string) => api<{ user: SessionUser }>("POST", "/api/auth/login/", { email, password }),
   logout: () => api("POST", "/api/auth/logout/", {}),
   settings: (data: { name?: string; email_alerts?: boolean }) => api<{ user: SessionUser }>("POST", "/api/auth/settings/", data),
   deleteAccount: (password: string) => api("DELETE", "/api/auth/account/", { password }),
-  verify: (token: string) => api<{ ok: true }>("POST", "/api/auth/verify/", { token }),
+  verify: (token: string) => api<{ ok: true; email_alerts?: boolean; following?: number }>("POST", "/api/auth/verify/", { token }),
   resendVerification: () => api<{ ok: true; already?: boolean }>("POST", "/api/auth/verify-resend/", {}),
   forgot: (email: string) => api<{ ok: true; message: string }>("POST", "/api/auth/forgot/", { email }),
   reset: (token: string, password: string) => api<{ user: SessionUser }>("POST", "/api/auth/reset/", { token, password }),

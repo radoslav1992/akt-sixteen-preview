@@ -94,6 +94,44 @@ for (const slug of ['akt-16-za-garazh', 'kashta-bez-akt-16', 'kopie-na-akt-16', 
   assert(llms.includes(url), `llms.txt missing ${slug}`);
 }
 
+// Email alerts: wherever a follow button is built, it says that it sends email and what for.
+const firstPage = (section) => `${section}/${readdirSync(join(dir, section), { withFileTypes: true }).find((e) => e.isDirectory() && existsSync(join(dir, section, e.name, 'index.html'))).name}/index.html`;
+for (const [file, phrase] of [[firstPage('region'), 'в района'], [firstPage('neighborhood'), 'тук'], [firstPage('company'), 'с тази фирма']]) {
+  const $ = load(read(file));
+  const box = $('[data-follow-box]');
+  assert.equal(box.length, 1, `${file} follow button`);
+  assert.equal(box.find('[data-follow-text]').text(), 'Извести ме по имейл', file);
+  const hint = box.find('[data-follow-hint]').text();
+  assert(hint.startsWith('Получете имейл, когато') && hint.includes(phrase) && hint.endsWith('Безплатно.'), `${file} follow hint: ${hint}`);
+}
+const check = load(read('check/index.html'));
+assert.equal(check('#check-follow [data-follow-text]').text(), 'Извести ме за това търсене');
+assert(check('#check-follow-hint').text().startsWith('Получете имейл'));
+assert.equal(home('#izvestiya').length, 1, 'Home explains the email alerts');
+for (const phrase of ['Едно писмо на ден', 'Безплатно', 'Отписване с един клик']) assert(home('#izvestiya').text().includes(phrase), `Home alerts explainer: ${phrase}`);
+assert(home('a[href="#izvestiya"]').length > 0, 'Home links to the alerts explainer');
+const account = load(read('account/index.html'));
+assert(account('.auth__legal a[href="/privacy/"]').length === 1 && /имейла/.test(account('.auth__legal').text()), 'Registration says what is stored and links the privacy page');
+
+// „За бизнеса“: built, indexable, in the sitemap, linked from the footer and from /data/, with the interest form.
+const business = load(read('business/index.html'));
+assert(sitemapUrls.has('https://akt16.org/business/'), 'Sitemap missing /business/');
+const businessTitle = [...business('title').text()].length;
+const businessDescription = [...(business('meta[name=description]').attr('content') ?? '')].length;
+assert(businessTitle > 10 && businessTitle <= 60, `/business/ title is ${businessTitle} characters`);
+assert(businessDescription >= 120 && businessDescription <= 155, `/business/ description is ${businessDescription} characters`);
+assert(business('main').text().includes('Планирано — още не е достъпно'), '/business/ must say the plan is not available yet');
+const leadForm = business('form#lead-form');
+assert.equal(leadForm.attr('action'), '/api/business-lead/');
+assert.equal(leadForm.attr('method'), 'post');
+for (const name of ['email', 'company', 'business_type', 'interests', 'districts', 'price_range', 'consent', 'website']) assert(leadForm.find(`[name=${name}]`).length, `/business/ form field ${name}`);
+assert.equal(leadForm.find('input[name=consent]').attr('checked'), undefined, 'Consent must not be pre-ticked');
+assert(home('footer a[href="/business/"]').length === 1, 'Footer links /business/');
+assert(load(read('data/index.html'))('main a[href="/business/"]').length === 1, '/data/ links /business/');
+const privacy = load(read('privacy/index.html'));
+assert.equal(privacy('h2#biznes-forma').length, 1, 'Privacy page covers the business form');
+assert(/12 месеца/.test(privacy('h2#biznes-forma').nextUntil('h2').text()), 'Privacy page states the 12-month retention');
+
 // Every static page: one h1, a self-referencing HTTPS canonical, a title and a description.
 // Every internal link must resolve to a built file or a known on-demand route.
 const onDemand = (path) => {
@@ -138,7 +176,7 @@ for (const file of htmlFiles) {
     const hrefPath = href.split(/[?#]/)[0];
     if (!hrefPath.endsWith('/') && !/\.[a-z0-9]+$/i.test(hrefPath)) slashless.set(href, path);
     if (!exists(href)) broken.set(href, path);
-    else if (/^\/blog\/[^/]+\/#./.test(href)) {
+    else if (/^\/(blog\/[^/]+|privacy|business)\/#./.test(href) || /^\/#./.test(href)) {
       const [target, hash] = href.split('#');
       if (!load(read(`${target.slice(1)}index.html`))(`[id="${hash}"]`).length) broken.set(href, path);
     }
@@ -151,4 +189,4 @@ for (const file of htmlFiles) assert(!/href="http:\/\//.test(read(file)), `${fil
 assert.equal(broken.size, 0, `Broken internal links: ${[...broken].slice(0, 10).map(([h, p]) => `${h} (on ${p})`).join(', ')}`);
 
 assert(read('robots.txt').includes('Sitemap: https://akt16.org/sitemap-index.xml'));
-console.log(`SEO checks passed: ${sitemapUrls.size} sitemap URLs; ${noindexed.length} noindex pages (${noindexCompanies} companies), none in the sitemap; ${documents} records linked in archives and sitemap; ${htmlFiles.length} static pages with one h1, canonical and description; no broken internal links; 24 districts with crawlable register lists.`);
+console.log(`SEO checks passed: /business/ (title ${businessTitle}, description ${businessDescription} characters) and alert buttons; ${sitemapUrls.size} sitemap URLs; ${noindexed.length} noindex pages (${noindexCompanies} companies), none in the sitemap; ${documents} records linked in archives and sitemap; ${htmlFiles.length} static pages with one h1, canonical and description; no broken internal links; 24 districts with crawlable register lists.`);

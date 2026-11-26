@@ -1,0 +1,270 @@
+---
+// „За бизнеса“: describes a PLANNED paid plan (nothing is sold yet) and collects interest through
+// POST /api/business-lead/ (src/lib/leads.ts). Works without JavaScript: the endpoint redirects back
+// to #lead-<result> and the matching message is shown with :target.
+import Base from "../layouts/Base.astro";
+import Breadcrumbs from "../components/Breadcrumbs.astro";
+import Icon from "../components/Icon.astro";
+import { breadcrumbs } from "../lib/seo";
+import { BUSINESS_PAGE_COPY, recentAdditions } from "../lib/business";
+import { BUSINESS_TYPES, HONEYPOT_FIELD, LEAD_INTERESTS, LEAD_MESSAGES, PRICE_RANGES } from "../lib/leads";
+import { recordSlug } from "../lib/data";
+import { fmtNumber, sentenceCase, truncate } from "../lib/format";
+
+const recent = recentAdditions(30);
+const audiences = [
+  { icon: "key", title: "Брокери и агенции", text: "Нови сгради в районите, в които работите: коя фирма е възложител и кога сградата получава Акт 16." },
+  { icon: "doc", title: "Кредитни посредници", text: "Кои сгради току-що са получили Акт 16 и в кои квартали предстои да бъдат завършени нови." },
+  { icon: "layers", title: "Интернет и комунални услуги", text: "Адреси на нови сгради — от разрешението за строеж до въвеждането в експлоатация." },
+  { icon: "home", title: "Мебели и интериор", text: "Нови жилищни сгради с Акт 16 по квартали — там, където предстои обзавеждане." },
+  { icon: "helmet", title: "Хамалски и довършителни фирми", text: "Сгради, които току-що са въведени в експлоатация, и разрешения за преустройства." },
+  { icon: "chart", title: "Инвеститори", text: "Какво се разрешава и какво се завършва по райони и кои фирми възложители са активни." },
+] as const;
+const planned = [
+  { title: "Цяла София или неограничен брой райони", text: "Едно известие за всичко ново, вместо да следите район по район." },
+  { title: "Филтри", text: "Само жилищни сгради, размер на сградата, само разрешения за строеж." },
+  { title: "Седмичен списък", text: "Новите документи за седмицата с фирмите възложители и строителния надзор от публичния регистър. Физически лица не се изброяват." },
+  { title: "Експорт в Excel/CSV", text: "Списъкът като таблица, която да заредите в своята система." },
+];
+---
+
+<Base
+  title={BUSINESS_PAGE_COPY.title}
+  description={BUSINESS_PAGE_COPY.description}
+  structuredData={[breadcrumbs([{ name: "Начало", path: "/" }, { name: "За бизнеса", path: "/business/" }])]}
+>
+  <Breadcrumbs items={[{ name: "Начало", path: "/" }, { name: "За бизнеса" }]} />
+
+  <header class="page-head">
+    <span class="eyebrow">За фирми · планирано</span>
+    <h1>{BUSINESS_PAGE_COPY.heading}</h1>
+    <p class="page-head__lead">Зад всяко ново разрешение за строеж стои предстоящ строеж, а зад всеки нов Акт 16 — обект, който вече може да се ползва. Обмисляме платен бизнес план за фирми, на които тези данни трябват редовно и за цяла София. Тук можете да заявите интерес и да ни кажете какво ви е нужно.</p>
+    <p class="notice business-status"><Icon name="info" size={20} /><span><strong>Планирано — още не е достъпно.</strong> Няма определена цена и няма срок. Безплатните имейл известия остават безплатни.</span></p>
+    <div class="page-head__actions">
+      <a class="btn btn--primary" href="#interest">Заявете интерес</a>
+      <a class="btn btn--ghost" href="/#izvestiya"><Icon name="bell" /> Безплатните известия</a>
+    </div>
+  </header>
+
+  <section class="section" aria-labelledby="sample-title">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">Пример от данните</span>
+        <h2 id="sample-title">Какво влезе в регистрите за последните {recent.days} дни</h2>
+        <p>Толкова документа добави ежедневното обновяване от публичните регистри на НАГ — Столична община. За тях се изпращат и безплатните известия.</p>
+      </div>
+    </div>
+    <div class="stat-grid">
+      <div class="stat stat--permits"><div class="stat__value">+{fmtNumber(recent.permits)}</div><div class="stat__label">Разрешения за строеж</div><div class="stat__sub">нови в регистъра</div></div>
+      <div class="stat stat--act16"><div class="stat__value">+{fmtNumber(recent.act16)}</div><div class="stat__label">Акт 16</div><div class="stat__sub">удостоверения за въвеждане в експлоатация</div></div>
+      <div class="stat"><div class="stat__value">{fmtNumber(recent.residential)}</div><div class="stat__label">За жилищни сгради</div><div class="stat__sub">блокове и къщи, по автоматична класификация</div></div>
+      <div class="stat"><div class="stat__value">{recent.districts}</div><div class="stat__label">Района</div><div class="stat__sub">с поне един нов документ</div></div>
+    </div>
+    {recent.sample.length > 0 && (
+      <div class="card business-sample">
+        <h3>Последни разрешения за нови жилищни сгради</h3>
+        <ul class="doc-list">
+          {recent.sample.map(({ record: r, company }) => (
+            <li>
+              <a class="doc-row" href={`/register/permits/${recordSlug(r)}/`}>
+                <span class="doc-row__kind doc-row__kind--permits" aria-hidden="true"></span>
+                <span class="doc-row__top"><span class="doc-row__num">№ {r.number}</span> <time datetime={r.date.split(".").reverse().join("-")}>{r.date}</time> {r.region && <span>{r.region}</span>} <span>Възложител: {company}</span></span>
+                <span class="doc-row__text">{truncate(sentenceCase(r.object), 160)}</span>
+              </a>
+            </li>
+          ))}
+        </ul>
+        <p class="muted business-sample__note">Всичко това е свободно достъпно в <a href="/register/permits/">регистъра на разрешенията</a> и в <a href="/data/">отворените данни</a>. Бизнес планът би го подреждал и изпращал вместо вас.</p>
+      </div>
+    )}
+  </section>
+
+  <section class="section" aria-labelledby="who-title">
+    <div class="section-head">
+      <div>
+        <span class="eyebrow">За кого е</span>
+        <h2 id="who-title">На кои фирми би бил полезен</h2>
+      </div>
+    </div>
+    <ul class="grid-auto audience">
+      {audiences.map((a) => (
+        <li class="card">
+          <Icon name={a.icon} size={22} />
+          <h3>{a.title}</h3>
+          <p>{a.text}</p>
+        </li>
+      ))}
+    </ul>
+  </section>
+
+  <section class="section grid-2" aria-labelledby="plan-title">
+    <div class="card plan">
+      <span class="badge badge--yellow">Планирано · още не е достъпно</span>
+      <h2 id="plan-title">Какво би включвал бизнес планът</h2>
+      <ul class="plan__list">
+        {planned.map((p) => <li><Icon name="check" size={18} /><div><strong>{p.title}</strong><p>{p.text}</p></div></li>)}
+      </ul>
+      <p class="muted">Цена и срок няма. Първо искаме да разберем дали такъв план е нужен — затова питаме.</p>
+    </div>
+    <div class="prose plan-notes">
+      <h2>Какво е сигурно и днес</h2>
+      <ul>
+        <li>Данните идват от публичните регистри на <a href="https://nag.sofia.bg" target="_blank" rel="noopener">НАГ — Столична община</a> и се обновяват веднъж на ден. Сайтът е независим и не е официален регистър.</li>
+        <li><a href="/#izvestiya">Безплатните имейл известия</a> за район, квартал, имот, фирма или запазено търсене остават безплатни.</li>
+        <li>Регистрите, <a href="/check/">проверката на имот</a> и <a href="/data/">отворените данни (CSV)</a> остават свободно достъпни.</li>
+      </ul>
+    </div>
+  </section>
+
+  <section class="section interest" id="interest" aria-labelledby="interest-title">
+    <div class="interest__intro">
+      <span class="eyebrow">Формуляр за интерес</span>
+      <h2 id="interest-title">Кажете ни какво ви трябва</h2>
+      <p>Попълването не ви задължава с нищо и не е поръчка. Ще използваме отговорите, за да решим дали и какво да направим, и ще ви пишем само по тази тема.</p>
+    </div>
+    <div class="card interest__card">
+      <p class="notice lead-result lead-result--ok" id="lead-ok" role="status">{LEAD_MESSAGES.ok}</p>
+      <p class="notice lead-result" id="lead-invalid" role="alert">{LEAD_MESSAGES.invalid}</p>
+      <p class="notice lead-result" id="lead-limit" role="alert">{LEAD_MESSAGES.limit}</p>
+      <p class="notice lead-result" id="lead-error" role="alert">{LEAD_MESSAGES.error}</p>
+
+      <form id="lead-form" class="lead-form" method="post" action="/api/business-lead/">
+        <div class="field">
+          <label class="field__label" for="lead-email">Имейл</label>
+          <input id="lead-email" name="email" type="email" autocomplete="email" maxlength="254" required />
+        </div>
+        <div class="field">
+          <label class="field__label" for="lead-company">Фирма (по желание)</label>
+          <input id="lead-company" name="company" type="text" autocomplete="organization" maxlength="120" />
+        </div>
+        <div class="field">
+          <label class="field__label" for="lead-type">Вид дейност</label>
+          <select id="lead-type" name="business_type" required>
+            <option value="">Изберете…</option>
+            {BUSINESS_TYPES.map((t) => <option value={t.id}>{t.label}</option>)}
+          </select>
+        </div>
+        <fieldset class="lead-form__group">
+          <legend class="field__label">Какво бихте използвали (по желание)</legend>
+          {LEAD_INTERESTS.map((i) => <label class="lead-check"><input type="checkbox" name="interests" value={i.id} /> <span>{i.label}</span></label>)}
+        </fieldset>
+        <div class="field">
+          <label class="field__label" for="lead-districts">Райони или квартали (по желание)</label>
+          <input id="lead-districts" name="districts" type="text" maxlength="300" placeholder="Напр. Лозенец, Младост, Витоша" />
+        </div>
+        <div class="field">
+          <label class="field__label" for="lead-price">Колко бихте платили на месец?</label>
+          <select id="lead-price" name="price_range" required>
+            <option value="">Изберете…</option>
+            {PRICE_RANGES.map((p) => <option value={p.id}>{p.label}</option>)}
+          </select>
+          <small class="muted">Въпросът е само за ориентир — цена не е определена.</small>
+        </div>
+        <div class="lead-hp" aria-hidden="true">
+          <label for="lead-website">Уебсайт (оставете празно)</label>
+          <input id="lead-website" name={HONEYPOT_FIELD} type="text" tabindex="-1" autocomplete="off" />
+        </div>
+        <label class="lead-check lead-check--consent"><input type="checkbox" name="consent" value="on" required /> <span>Съгласен съм akt16.org да запази отговорите ми и да ми пише по имейл за бизнес плана. Вижте <a href="/privacy/#biznes-forma">политиката за поверителност</a>.</span></label>
+        <button type="submit" class="btn btn--primary" id="lead-submit">Изпрати</button>
+      </form>
+    </div>
+  </section>
+</Base>
+
+<script>
+  import { track } from "../scripts/analytics";
+
+  // With JavaScript the form is sent in place; without it the browser posts it and is redirected back.
+  const form = document.getElementById("lead-form") as HTMLFormElement;
+  const submit = document.getElementById("lead-submit") as HTMLButtonElement;
+  const results = [...document.querySelectorAll<HTMLElement>(".lead-result")];
+  const defaults = new Map(results.map((el) => [el.id, el.textContent ?? ""]));
+
+  function show(result: "ok" | "invalid" | "limit" | "error", message?: string) {
+    for (const el of results) {
+      const on = el.id === `lead-${result}`;
+      el.classList.toggle("is-shown", on);
+      if (on) {
+        el.textContent = message || defaults.get(el.id)!;
+        el.scrollIntoView({ block: "nearest" });
+      }
+    }
+  }
+
+  form.addEventListener("submit", async (e) => {
+    e.preventDefault();
+    const data = new FormData(form);
+    const text = (name: string) => String(data.get(name) ?? "");
+    submit.disabled = true;
+    try {
+      const res = await fetch(form.action, {
+        method: "POST",
+        credentials: "same-origin",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          email: text("email"),
+          company: text("company"),
+          business_type: text("business_type"),
+          interests: data.getAll("interests"),
+          districts: text("districts"),
+          price_range: text("price_range"),
+          consent: data.get("consent") === "on",
+          website: text("website"),
+        }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) {
+        show("ok", body.message);
+        form.reset();
+        form.hidden = true;
+        track("business_lead");
+      } else show(res.status === 429 ? "limit" : res.status === 400 || res.status === 413 ? "invalid" : "error", body.message);
+    } catch {
+      show("error");
+    } finally {
+      submit.disabled = false;
+    }
+  });
+</script>
+
+<style>
+  .business-status { margin-top: 1rem; max-width: 780px; align-items: flex-start; }
+  .business-status :global(svg) { margin-top: 0.1rem; }
+  .business-sample { margin-top: 1rem; display: grid; gap: 0.9rem; }
+  .business-sample h3 { font-size: 1.25rem; }
+  .business-sample__note { font-size: 0.9rem; }
+
+  .audience { list-style: none; }
+  .audience li { display: grid; gap: 0.5rem; align-content: start; }
+  .audience :global(svg) { color: var(--orange); }
+  .audience h3 { font-size: 1.2rem; }
+  .audience p { color: var(--muted); font-size: 0.95rem; }
+
+  .plan { display: grid; gap: 1rem; justify-items: start; }
+  .plan__list { list-style: none; display: grid; gap: 0.85rem; }
+  .plan__list li { display: flex; gap: 0.7rem; align-items: flex-start; }
+  .plan__list :global(svg) { margin-top: 0.2rem; color: var(--green); }
+  .plan__list p { color: var(--muted); font-size: 0.94rem; }
+  .plan-notes h2 { margin-top: 0; }
+
+  .interest { display: grid; gap: 1.25rem; scroll-margin-top: 90px; }
+  @media (min-width: 960px) { .interest { grid-template-columns: minmax(0, 0.8fr) minmax(0, 1.2fr); gap: 2.5rem; align-items: start; } }
+  .interest__intro h2 { margin: 0.5rem 0 0.6rem; }
+  .interest__intro p { color: var(--muted); }
+  .interest__card { display: grid; gap: 1rem; min-width: 0; }
+  .lead-form { display: grid; gap: 1rem; }
+  .lead-form__group { border: 0; padding: 0; margin: 0; display: grid; gap: 0.5rem; min-width: 0; }
+  .lead-form__group legend { padding: 0; margin-bottom: 0.45rem; }
+  .lead-check { display: flex; gap: 0.6rem; align-items: flex-start; font-weight: 600; font-size: 0.95rem; line-height: 1.45; }
+  .lead-check input { flex-shrink: 0; margin: 0.2rem 0 0; width: 1.05rem; height: 1.05rem; accent-color: var(--ink); }
+  .lead-check--consent { font-weight: 500; font-size: 0.9rem; }
+  .lead-check a { text-decoration: underline; }
+  .lead-form .btn { justify-self: start; }
+  /* Honeypot: off-screen for people, present for scripts that fill every field. */
+  .lead-hp { position: absolute; left: -9999px; width: 1px; height: 1px; overflow: hidden; }
+  /* Result messages: :target after a form post without JavaScript, .is-shown when sent in place. */
+  .lead-result { display: none; scroll-margin-top: 100px; font-weight: 600; }
+  .lead-result:target, .lead-result.is-shown { display: flex; }
+  .lead-result--ok { background: var(--green-soft); border-color: color-mix(in srgb, var(--green) 30%, transparent); }
+  .interest__card:has(.lead-result--ok:target) .lead-form { display: none; }
+</style>

@@ -2,6 +2,7 @@
 import Base from "../../layouts/Base.astro";
 import Icon from "../../components/Icon.astro";
 import Breadcrumbs from "../../components/Breadcrumbs.astro";
+import AlertsExplainer from "../../components/AlertsExplainer.astro";
 import { getRegister, getRecords, getUniqueDistricts, recordSlug, slugifyRegion, type RegisterId } from "../../lib/data";
 import { BUILDING_TYPES } from "../../lib/classify";
 import { breadcrumbs, REGISTER_PAGE_COPY } from "../../lib/seo";
@@ -167,6 +168,8 @@ Astro.response.headers.set("Cache-Control", "public, max-age=300");
   <nav class="pagination" id="pagination" aria-label="Страници"></nav>
   <p id="load-error" class="notice" role="status" hidden>Не успяхме да заредим филтрите. <a href={`/register/${registerId}/archive/1/`}>Разгледайте всички документи в архива.</a></p>
   <noscript><p class="notice">За интерактивно търсене включете JavaScript или <a href={`/register/${registerId}/archive/1/`}>разгледайте пълния архив</a>.</p></noscript>
+
+  <AlertsExplainer />
 
   <section class="section register-about">
     <div class="prose">

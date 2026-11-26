@@ -37,6 +37,8 @@ const otherParties = splitParties(partyField).filter((p) => !parseCompany(p));
 const type = classify(record);
 const history = parcelHistory(record);
 const thisIndex = history.findIndex((d) => d.record === record);
+// A permit whose parcel has no certificate in the register yet: the alert the visitor most likely wants.
+const awaitsAct16 = isPermit && !history.some((d) => d.registerId === "act16");
 
 const takeEffectMs = record.takeEffect?.match(/\d{10,}/)?.[0];
 const takeEffect = takeEffectMs ? new Date(+takeEffectMs).toLocaleDateString("bg-BG", { day: "numeric", month: "long", year: "numeric", timeZone: "Europe/Sofia" }) : null;
@@ -152,7 +154,16 @@ Astro.response.headers.set("Cache-Control", "public, max-age=3600");
       <div class="card aside-card">
         <h2 class="aside-card__title">Действия</h2>
         <div class="aside-actions">
-          <FollowButton kind={cadastreIds.length ? "parcel" : "record"} itemKey={cadastreIds[0] ?? `${registerId}:${slug}`} label={`${cadastreIds[0] ? "Имот " + cadastreIds[0] : docName + " № " + record.number}${record.region ? " · " + record.region : ""}`} url={Astro.url.pathname} />
+          {cadastreIds.length ? (
+            <FollowButton class="follow--stack" kind="parcel" itemKey={cadastreIds[0]} label={`Имот ${cadastreIds[0]}${record.region ? " · " + record.region : ""}`} url={Astro.url.pathname} hint={awaitsAct16 ? "Получете имейл, когато за този имот се появи Акт 16 или друг нов документ в регистъра на НАГ. Безплатно." : undefined} />
+          ) : (
+            <FollowButton class="follow--stack" kind="record" alerts={false} itemKey={`${registerId}:${slug}`} label={`${docName} № ${record.number}${record.region ? " · " + record.region : ""}`} url={Astro.url.pathname}>
+              <Fragment slot="hint">
+                Документът е без идентификатор КККР, затова по него не изпращаме известия.
+                {record.region && <>За имейл при нови документи следете <a href={`/region/${slugifyRegion(record.region)}/`}>район {record.region}</a>.</>}
+              </Fragment>
+            </FollowButton>
+          )}
           <button type="button" class="btn btn--ghost btn--sm" data-copy="url" data-share="1"><Icon name="share" size={16} /> Сподели</button>
           <a class="btn btn--ghost btn--sm" href={`/check/?q=${encodeURIComponent(cadastreIds[0] ?? record.number)}`}><Icon name="search" size={16} /> История</a>
         </div>

@@ -1,0 +1,8 @@
+// Minimal Worker config for tests: only a local D1 database (tests/helpers/d1.ts). Never deployed.
+{
+	"name": "akt16-tests",
+	"compatibility_date": "2026-04-17",
+	"d1_databases": [
+		{ "binding": "DB", "database_name": "akt16-tests", "database_id": "00000000-0000-0000-0000-000000000000" }
+	]
+}

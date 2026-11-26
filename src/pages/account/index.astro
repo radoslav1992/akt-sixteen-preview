@@ -8,7 +8,7 @@ import Icon from "../../components/Icon.astro";
     <section class="account-intro panel-dark blueprint">
       <span class="eyebrow">Безплатен профил</span>
       <h1 data-state-title>Следени обекти</h1>
-      <p data-state-lead>Следете имоти, райони, квартали и фирми. Без профил списъкът се пази само на това устройство.</p>
+      <p data-state-lead>С безплатен профил получавате имейл, когато в регистрите се появи ново разрешение за строеж или Акт 16 по следените от вас райони, квартали, имоти и фирми. Без профил списъкът се пази само на това устройство и не изпращаме писма.</p>
     </section>
 
     <div class="account-grid">
@@ -20,7 +20,7 @@ import Icon from "../../components/Icon.astro";
         <div id="watch-list"><p class="muted">Зареждане…</p></div>
         <div class="watch__empty" id="watch-empty" hidden>
           <Icon name="star" size={28} />
-          <p>Все още не следите нищо. Натиснете „Следи“ на страница на <a href="/region/">район</a>, <a href="/neighborhood/">квартал</a>, <a href="/company/">фирма</a> или документ.</p>
+          <p>Все още не следите нищо. Натиснете „Извести ме по имейл“ на страница на <a href="/region/">район</a>, <a href="/neighborhood/">квартал</a>, <a href="/company/">фирма</a> или документ, или запазете търсене в <a href="/check/">проверката на имот</a>.</p>
         </div>
       </section>
 
@@ -30,6 +30,8 @@ import Icon from "../../components/Icon.astro";
             <button type="button" role="tab" aria-selected="true" data-tab="login">Вход</button>
             <button type="button" role="tab" aria-selected="false" data-tab="register">Регистрация</button>
           </div>
+          <p class="auth__why" data-only="register" hidden>Профилът е нужен, за да знаем на кой адрес да изпращаме известията: най-много едно писмо на ден, само когато има нов документ по следеното от вас. Безплатно е.</p>
+          <p class="notice auth__intent" id="auth-intent" hidden><span>След <span data-intent-action>регистрацията</span> ще следите <strong data-intent-label></strong>.</span></p>
           <form id="auth-form" class="auth__form" novalidate>
             <div class="field" data-only="register" hidden>
               <label class="field__label" for="auth-name">Име (по желание)</label>
@@ -44,17 +46,23 @@ import Icon from "../../components/Icon.astro";
               <input id="auth-password" name="password" type="password" autocomplete="current-password" minlength="8" required />
               <small class="muted" data-only="register" hidden>Поне 8 символа.</small>
             </div>
-            <label class="toggle" data-only="register" hidden><input type="checkbox" id="auth-alerts" checked /> Изпращай ми имейл, когато има нови документи по следените обекти</label>
+            <label class="toggle" data-only="register" hidden><input type="checkbox" id="auth-alerts" checked /> Изпращайте ми имейл, когато има нови документи по следените обекти</label>
             <p class="auth__error" id="auth-error" role="alert" hidden></p>
             <button type="submit" class="btn btn--primary" id="auth-submit">Вход</button>
             <p class="auth__forgot" data-only="login"><a href="/account/forgot/">Забравена парола?</a></p>
-            <p class="muted auth__legal" data-only="register" hidden>С регистрацията приемате <a href="/privacy/">политиката за поверителност</a>. Пазим само имейла, името и списъка ви.</p>
+            <p class="muted auth__legal" data-only="register" hidden>Пазим имейла, името (ако го въведете), паролата като хеш и списъка със следени обекти — нищо друго. Ще получите писмо за потвърждение на адреса; известията започват след него и се спират с един клик от всяко писмо. С регистрацията приемате <a href="/privacy/">политиката за поверителност</a>.</p>
           </form>
         </section>
 
         <section class="card profile" id="profile" hidden>
           <h2>Профил</h2>
           <p class="profile__email" id="profile-email"></p>
+          <div class="notice notice--info follow-done" id="follow-done" role="status" hidden>
+            <div>
+              <p><strong>Вече следите <span data-done-label></span>.</strong> <span data-done-status></span></p>
+              <p><a data-done-link href="/">Обратно към страницата</a></p>
+            </div>
+          </div>
           <div class="notice verify-banner" id="verify-banner" hidden>
             <div>
               <p><strong>Потвърдете имейла си.</strong> Изпратихме ви писмо с връзка. Известията започват след потвърждение.</p>
@@ -113,6 +121,10 @@ import Icon from "../../components/Icon.astro";
   .auth__form { display: grid; gap: 0.85rem; }
   .auth__error { color: var(--red); font-weight: 600; font-size: 0.92rem; }
   .auth__legal { font-size: 0.82rem; }
+  .auth__why { font-size: 0.93rem; color: var(--ink-2); margin-bottom: 0.85rem; }
+  .auth__intent { margin-bottom: 0.85rem; }
+  .auth__intent strong, .follow-done strong { overflow-wrap: anywhere; }
+  .follow-done p + p { margin-top: 0.35rem; }
   .auth__forgot { font-size: 0.9rem; }
   .verify-banner p + .btn { margin-top: 0.6rem; }
   .verify-banner__status { font-size: 0.88rem; font-weight: 600; margin-top: 0.4rem; }

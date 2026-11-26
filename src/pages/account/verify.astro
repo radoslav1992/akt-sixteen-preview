@@ -6,22 +6,60 @@ import Base from "../../layouts/Base.astro";
     <span class="eyebrow">Профил</span>
     <h1>Потвърждаване на имейла</h1>
     <p id="verify-status" role="status">Потвърждаваме адреса…</p>
-    <p><a class="btn btn--primary" href="/account/">Към профила</a></p>
+    <ul class="verify-items" id="verify-items" hidden></ul>
+    <p class="verify-actions">
+      <a class="btn btn--primary" href="/account/">Към профила</a>
+      <a class="btn btn--ghost" href="/region/" id="verify-browse" hidden>Изберете район</a>
+    </p>
   </section>
 </Base>
 
 <script>
-  import { auth, refreshSession } from "../../scripts/watchlist";
+  import { auth, getItems, refreshSession } from "../../scripts/watchlist";
   const status = document.getElementById("verify-status")!;
+  const list = document.getElementById("verify-items")!;
+  const browse = document.getElementById("verify-browse")!;
   const token = new URLSearchParams(location.search).get("token");
+
+  // Says what happens next: which items are followed and whether the daily email is on.
+  async function done(alerts: boolean | undefined, following: number | undefined) {
+    const user = await refreshSession();
+    const items = user ? getItems() : [];
+    const count = following ?? items.length;
+    const on = alerts ?? !!user?.email_alerts;
+    if (!on) status.textContent = "Готово! Имейлът е потвърден. Имейл известията са изключени — можете да ги включите от профила.";
+    else if (!count) {
+      status.textContent = "Готово! Имейлът е потвърден и известията са включени. Все още не следите нищо — отворете район, квартал или имот и натиснете „Извести ме по имейл“.";
+      browse.hidden = false;
+    } else {
+      status.textContent = `Готово! Имейлът е потвърден и известията са включени. Следите ${count} ${count === 1 ? "обект" : "обекта"} и ще получите имейл, когато в регистрите се появи нов документ по ${count === 1 ? "него" : "тях"} — най-много едно писмо на ден.`;
+    }
+    if (items.length) {
+      list.replaceChildren(...items.slice(0, 5).map((item) => {
+        const li = document.createElement("li");
+        li.append(Object.assign(document.createElement("a"), { href: item.url, textContent: item.label }));
+        return li;
+      }));
+      list.hidden = false;
+    }
+  }
+
   if (!token) status.textContent = "Липсва код за потвърждение. Отворете връзката от писмото отново.";
   else
     auth.verify(token)
-      .then(() => { status.textContent = "Готово! Имейлът е потвърден и ще получавате известия за следените обекти."; return refreshSession(); })
-      .catch((e: Error) => { status.textContent = e.message; });
+      .then((res) => done(res.email_alerts, res.following))
+      .catch(async (e: Error) => {
+        // The link works once. Opened a second time (or pre-opened by a mail scanner), the address is already confirmed.
+        const user = await refreshSession();
+        if (user?.email_verified) await done(undefined, undefined);
+        else status.textContent = e.message;
+      });
 </script>
 
 <style>
   .auth-page { max-width: 560px; margin: 2rem auto; display: grid; gap: 0.9rem; }
   .auth-page h1 { font-size: clamp(1.8rem, 1.4rem + 1.6vw, 2.4rem); }
+  .verify-items { list-style: none; display: grid; gap: 0.35rem; }
+  .verify-items a { font-weight: 700; overflow-wrap: anywhere; }
+  .verify-actions { display: flex; flex-wrap: wrap; gap: 0.6rem; }
 </style>

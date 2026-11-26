@@ -1,5 +1,8 @@
 // Page chrome behaviour: theme, mobile menu, service worker, account badge, follow buttons.
-import { addItem, getCachedUser, getItems, isWatched, onChange, removeItem, type WatchKind } from "./watchlist";
+import { getCachedUser, getItems, isWatched, onChange, type WatchKind } from "./watchlist";
+import { showToast, syncFollowButton, toggleFollow } from "./follow";
+
+export { showToast };
 
 function initTheme(): void {
   const meta = document.querySelector('meta[name="theme-color"]');
@@ -44,44 +47,26 @@ function renderAccount(): void {
 }
 
 function initFollowButtons(): void {
-  const buttons = document.querySelectorAll<HTMLButtonElement>("[data-follow]");
-  const sync = () => buttons.forEach((btn) => {
-    const on = isWatched(btn.dataset.kind as WatchKind, btn.dataset.key!);
-    btn.setAttribute("aria-pressed", String(on));
-    const text = btn.querySelector("[data-follow-text]");
-    if (text) text.textContent = on ? "Следите" : "Следи";
+  const boxes = [...document.querySelectorAll<HTMLElement>("[data-follow-box]")].map((box) => {
+    const hint = box.querySelector<HTMLElement>("[data-follow-hint]");
+    return { box, btn: box.querySelector<HTMLButtonElement>("[data-follow]")!, hint, defaultHint: hint?.innerHTML ?? "" };
   });
-  buttons.forEach((btn) => {
-    btn.hidden = false;
+  const sync = () => boxes.forEach(({ btn, hint, defaultHint }) => {
+    syncFollowButton(btn, hint, defaultHint, isWatched(btn.dataset.kind as WatchKind, btn.dataset.key!));
+  });
+  boxes.forEach(({ box, btn }) => {
+    box.hidden = false;
     btn.addEventListener("click", async () => {
-      const kind = btn.dataset.kind as WatchKind;
-      const key = btn.dataset.key!;
-      if (isWatched(kind, key)) await removeItem(kind, key);
-      else {
-        await addItem({ kind, key, label: btn.dataset.label!, url: btn.dataset.url! });
-        if (!getCachedUser()) showToast("Добавено в „Следени“ на това устройство. Влезте, за да ги пазите в профил.", "/account/", "Вход");
-        else showToast("Добавено в „Следени“.", "/account/", "Виж");
-      }
+      await toggleFollow(
+        { kind: btn.dataset.kind as WatchKind, key: btn.dataset.key!, label: btn.dataset.label!, url: btn.dataset.url! },
+        btn.dataset.alerts !== "0",
+      );
       sync();
     });
   });
   sync();
-}
-
-export function showToast(message: string, href?: string, action?: string): void {
-  document.querySelector(".toast")?.remove();
-  const el = document.createElement("div");
-  el.className = "toast";
-  el.setAttribute("role", "status");
-  el.textContent = message;
-  if (href && action) {
-    const a = document.createElement("a");
-    a.href = href;
-    a.textContent = action;
-    el.append(" ", a);
-  }
-  document.body.append(el);
-  setTimeout(() => el.remove(), 5000);
+  // Following from another button on the page, or an expired session noticed by the API, changes the state.
+  onChange(sync);
 }
 
 function initCopyButtons(): void {
