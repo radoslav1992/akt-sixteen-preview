@@ -21,6 +21,7 @@ const RATE_LIMITS = {
   reset: { max: 5, seconds: 60 * 60 }, // password-reset emails per IP (or per email)
   verify: { max: 3, seconds: 60 * 60 }, // verification emails re-sent per IP (or per email)
   alert_test: { max: 3, seconds: 60 * 60 }, // test digests per IP (or per email)
+  lead: { max: 5, seconds: 60 * 60 }, // business interest form submissions per IP (migration 0003)
 };
 
 export type WatchKind = (typeof WATCH_KINDS)[number];
@@ -259,6 +260,17 @@ export function ipKey(ip: string): string {
   return groups.slice(0, 4).map((g) => g.replace(/^0+(?=.)/, "")).join(":") + "::/64";
 }
 
+/** Rate-limit bucket of the request's client. */
+export function clientIpKey(ctx: Pick<APIContext, "clientAddress">): string {
+  let ip = "unknown";
+  try {
+    ip = ctx.clientAddress || ip;
+  } catch {
+    // no cf-connecting-ip (e.g. some local setups)
+  }
+  return ipKey(ip);
+}
+
 /* Sessions */
 
 export const USER_COLUMNS = "id, email, name, email_alerts, email_verified_at";
@@ -414,13 +426,7 @@ export async function handle(
       if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) throw new InputError(MESSAGES.invalid_input);
       body = parsed as Record<string, unknown>;
     }
-    let ip = "unknown";
-    try {
-      ip = ctx.clientAddress || ip;
-    } catch {
-      // no cf-connecting-ip (e.g. some local setups)
-    }
-    return await handler({ db, request, body, user: user as SessionUser, ip: ipKey(ip) });
+    return await handler({ db, request, body, user: user as SessionUser, ip: clientIpKey(ctx) });
   } catch (err) {
     if (err instanceof InputError) return fail(400, "invalid_input", err.message);
     console.error("[auth]", err);
