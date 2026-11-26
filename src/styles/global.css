@@ -415,6 +415,14 @@ a.bar-list__row:hover .bar-list__label { color: var(--blue); }
 /* ---------- Follow button & toast ---------- */
 .follow-btn[aria-pressed="true"] { background: var(--yellow); color: var(--yellow-ink); border-color: var(--yellow-strong); }
 .follow-btn[aria-pressed="true"] svg { fill: currentColor; }
+/* Button plus one line saying what following does (FollowButton.astro); takes its own row among other actions. */
+.follow { display: flex; flex-wrap: wrap; align-items: center; gap: 0.45rem 0.85rem; flex: 1 1 100%; min-width: 0; }
+/* Long labels („Кажете ми, когато сградата получи Акт 16“) wrap on narrow screens instead of overflowing. */
+.follow .follow-btn { max-width: 100%; white-space: normal; text-align: left; padding-top: 0.4rem; padding-bottom: 0.4rem; line-height: 1.2; }
+.follow__hint { flex: 1 1 16rem; min-width: 0; max-width: 62ch; font-size: 0.88rem; line-height: 1.45; color: var(--muted); }
+.follow__hint a { font-weight: 700; text-decoration: underline; text-underline-offset: 2px; }
+.follow--stack { flex-direction: column; align-items: flex-start; }
+.follow--stack .follow__hint { flex: 0 1 auto; }
 .toast {
   position: fixed; left: 50%; bottom: calc(5.5rem + var(--safe-bottom)); transform: translateX(-50%); z-index: 200;
   max-width: min(92vw, 520px); padding: 0.8rem 1rem; border-radius: var(--radius);

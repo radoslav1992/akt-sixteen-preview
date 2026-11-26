@@ -1,6 +1,7 @@
 // Account page: sign-in / registration, profile settings and the watchlist with "new since last visit" counts.
 import { matchesQuery, parcelIdOf, queryTerms } from "../lib/search";
-import { auth, getCachedUser, getItems, markSeen, onChange, refreshSession, removeItem, setCachedUser, syncAfterLogin, type WatchItem } from "./watchlist";
+import { auth, clearFollowIntent, getCachedUser, getFollowIntent, getItems, markSeen, onChange, refreshSession, removeItem, setCachedUser, syncAfterLogin, type SessionUser, type WatchItem } from "./watchlist";
+import { track } from "./analytics";
 
 interface ClientRecord { n: string; d: string; r: string; m: string; c: string; h: string; k: string; o?: string; s?: string }
 
@@ -75,7 +76,29 @@ export function initAccount(): void {
   const form = $<HTMLFormElement>("auth-form");
   const errorEl = $("auth-error");
   const submit = $<HTMLButtonElement>("auth-submit");
-  let mode: "login" | "register" = new URLSearchParams(location.search).get("mode") === "register" ? "register" : "login";
+  // A guest who pressed „Извести ме по имейл“ and has never signed in here needs an account, not the sign-in form.
+  const requestedMode = new URLSearchParams(location.search).get("mode");
+  let mode: "login" | "register" = requestedMode === "register" || (!requestedMode && getFollowIntent() && !getCachedUser()) ? "register" : "login";
+
+  function renderIntent() {
+    const intent = getCachedUser() ? null : getFollowIntent();
+    $("auth-intent").hidden = !intent;
+    if (!intent) return;
+    document.querySelector("[data-intent-label]")!.textContent = intent.label;
+    document.querySelector("[data-intent-action]")!.textContent = mode === "register" ? "регистрацията" : "входа";
+  }
+
+  /** After signing up or in from a follow click: confirm the item is followed and say when emails start. */
+  function showFollowed(item: WatchItem, user: SessionUser) {
+    document.querySelector("[data-done-label]")!.textContent = item.label;
+    document.querySelector("[data-done-status]")!.textContent = !user.email_alerts
+      ? "Имейл известията са изключени — включете ги по-долу, за да получавате писма."
+      : user.email_verified === false
+        ? `Изпратихме писмо на ${user.email}. Отворете връзката в него, за да потвърдите адреса — след това ще получавате имейл при нов документ.`
+        : "Ще получите имейл, когато се появи нов документ — най-много едно писмо на ден.";
+    document.querySelector<HTMLAnchorElement>("[data-done-link]")!.href = item.url;
+    $("follow-done").hidden = false;
+  }
 
   function setMode(next: "login" | "register") {
     mode = next;
@@ -85,6 +108,7 @@ export function initAccount(): void {
     submit.textContent = mode === "register" ? "Създай профил" : "Вход";
     $<HTMLInputElement>("auth-password").autocomplete = mode === "register" ? "new-password" : "current-password";
     errorEl.hidden = true;
+    renderIntent();
   }
   document.querySelectorAll<HTMLButtonElement>("[data-tab]").forEach((b) => b.addEventListener("click", () => setMode(b.dataset.tab as "login" | "register")));
   setMode(mode);
@@ -131,7 +155,7 @@ export function initAccount(): void {
     document.querySelector("[data-state-title]")!.textContent = user ? `Здравейте${user.name ? ", " + user.name : ""}` : "Следени обекти";
     document.querySelector("[data-state-lead]")!.textContent = user
       ? "Списъкът ви се пази в профила и е достъпен от всяко устройство."
-      : "Следете имоти, райони, квартали и фирми. Без профил списъкът се пази само на това устройство.";
+      : "С безплатен профил получавате имейл, когато в регистрите се появи ново разрешение за строеж или Акт 16 по следените от вас райони, квартали, имоти и фирми. Без профил списъкът се пази само на това устройство и не изпращаме писма.";
     if (user) {
       $("profile-email").textContent = user.email;
       $<HTMLInputElement>("settings-name").value = user.name ?? "";
@@ -153,12 +177,20 @@ export function initAccount(): void {
       return;
     }
     submit.disabled = true;
+    const intent = getFollowIntent();
+    const registering = mode === "register";
     try {
-      const { user } = mode === "register"
-        ? await auth.register(email, password, name || undefined, $<HTMLInputElement>("auth-alerts").checked)
+      const { user } = registering
+        ? await auth.register(email, password, name || undefined, $<HTMLInputElement>("auth-alerts").checked, intent ?? undefined)
         : await auth.login(email, password);
       setCachedUser(user);
-      await syncAfterLogin();
+      // The account exists from here on: a failed sync must not look like a failed registration.
+      await syncAfterLogin().catch(() => {});
+      if (intent) {
+        if (registering) track("alert_signup", { kind: intent.kind });
+        clearFollowIntent();
+        showFollowed(intent, user);
+      }
       renderUser();
       renderList();
     } catch (err) {
@@ -182,6 +214,7 @@ export function initAccount(): void {
   $("logout").addEventListener("click", async () => {
     await auth.logout().catch(() => {});
     setCachedUser(null);
+    $("follow-done").hidden = true;
     renderUser();
   });
 

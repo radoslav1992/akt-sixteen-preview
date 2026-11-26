@@ -1,19 +1,52 @@
 ---
+// "Извести ме по имейл": adds the item to „Следени“. The daily digest (src/lib/alerts.ts) emails
+// account holders when a new permit or Act 16 certificate matches it. The hint under the button says
+// exactly that; src/scripts/shell.ts swaps it for the visitor's own state once the item is followed.
 import Icon from "./Icon.astro";
-interface Props { kind: "record" | "parcel" | "company" | "region" | "neighborhood" | "search"; itemKey: string; label: string; url: string; class?: string }
-const { kind, itemKey, label, url, class: className } = Astro.props;
+
+type Kind = "record" | "parcel" | "company" | "region" | "neighborhood" | "search";
+interface Props {
+  kind: Kind;
+  itemKey: string;
+  label: string;
+  url: string;
+  class?: string;
+  /** Button text while the item is not followed. */
+  cta?: string;
+  /** One line under the button: what the visitor gets. Defaults to the text for the kind. */
+  hint?: string;
+  /** False for items the digest cannot match (documents without a cadastral id): no email is promised. */
+  alerts?: boolean;
+}
+
+const HINTS: { [K in Kind]: string } = {
+  region: "Получете имейл, когато в района се появи ново разрешение за строеж или Акт 16. Безплатно.",
+  neighborhood: "Получете имейл, когато тук се появи ново разрешение за строеж или Акт 16. Безплатно.",
+  company: "Получете имейл, когато в регистрите се появи нов документ с тази фирма — разрешение за строеж или Акт 16. Безплатно.",
+  parcel: "Получете имейл, когато за този имот се появи нов документ — разрешение за строеж или Акт 16. Безплатно.",
+  record: "Получете имейл, когато за същия имот се появи нов документ. Безплатно.",
+  search: "Получете имейл, когато се появи нов документ, който отговаря на това търсене. Безплатно.",
+};
+
+const { kind, itemKey, label, url, class: className, alerts = true } = Astro.props;
+const cta = Astro.props.cta ?? (alerts ? "Извести ме по имейл" : "Запази в „Следени“");
+const hint = Astro.props.hint ?? (alerts ? HINTS[kind] : "Запазва документа в списъка ви „Следени“.");
 ---
-<button
-  type="button"
-  class:list={["btn btn--ghost btn--sm follow-btn", className]}
-  data-follow
-  data-kind={kind}
-  data-key={itemKey}
-  data-label={label}
-  data-url={url}
-  aria-pressed="false"
-  hidden
->
-  <Icon name="star" size={16} />
-  <span data-follow-text>Следи</span>
-</button>
+<div class:list={["follow", className]} data-follow-box hidden>
+  <button
+    type="button"
+    class="btn btn--dark btn--sm follow-btn"
+    data-follow
+    data-kind={kind}
+    data-key={itemKey}
+    data-label={label}
+    data-url={url}
+    data-cta={cta}
+    data-alerts={alerts ? "1" : "0"}
+    aria-pressed="false"
+  >
+    <Icon name={alerts ? "bell" : "star"} size={16} />
+    <span data-follow-text>{cta}</span>
+  </button>
+  <p class="follow__hint" data-follow-hint><slot name="hint">{hint}</slot></p>
+</div>

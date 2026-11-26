@@ -5,6 +5,7 @@ import RecordCard from "../components/RecordCard.astro";
 import SofiaMap from "../components/SofiaMap.astro";
 import BarList from "../components/BarList.astro";
 import FaqList from "../components/FaqList.astro";
+import AlertsExplainer from "../components/AlertsExplainer.astro";
 import { getRegister, getCombinedStats, getAllRegionsWithSlugs, recordSlug } from "../lib/data";
 import { topCompanies, getListedCompanies } from "../lib/companies";
 import { getListedNeighborhoods } from "../lib/places";
@@ -107,7 +108,10 @@ const faqLd = {
             </li>
           ))}
         </ul>
-        <a class="btn btn--ghost btn--sm" href="/rss.xml"><Icon name="rss" size={15} /> Абонамент (RSS)</a>
+        <div class="live__actions">
+          <a class="btn btn--ghost btn--sm" href="#izvestiya"><Icon name="bell" size={15} /> Известия по имейл</a>
+          <a class="btn btn--ghost btn--sm" href="/rss.xml"><Icon name="rss" size={15} /> RSS</a>
+        </div>
       </aside>
     </div>
   </section>
@@ -169,6 +173,8 @@ const faqLd = {
       </div>
     </div>
   </section>
+
+  <AlertsExplainer />
 
   <section class="section map-teaser card" aria-labelledby="map-title">
     <div class="map-teaser__copy">
@@ -276,7 +282,7 @@ const faqLd = {
     <div>
       <span class="eyebrow">Безплатен профил</span>
       <h2>Следете район, фирма или имот</h2>
-      <p>Запазете обекти в „Следени“ и вижте какво е ново при следващото ви посещение — нови разрешения в квартала, нов Акт 16 на сградата, нови проекти на инвеститора.</p>
+      <p>Създайте профил и получавайте имейл — най-много веднъж на ден — за нови разрешения в квартала, нов Акт 16 на сградата или нови проекти на инвеститора. <a href="#izvestiya">Как работят известията</a></p>
     </div>
     <div class="cta__actions">
       <a class="btn btn--primary" href="/account/?mode=register">Създай профил</a>
@@ -312,6 +318,8 @@ const faqLd = {
   .live__list a:hover strong { color: var(--yellow); }
   .live__item { display: flex; flex-direction: column; font-size: 0.88rem; min-width: 0; overflow: hidden; }
   .live__item small { color: var(--asphalt-muted); font-size: 0.8rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+
+  .live__actions { display: flex; flex-wrap: wrap; gap: 0.5rem; }
 
   .home-stats { margin-top: 1.25rem; }
 

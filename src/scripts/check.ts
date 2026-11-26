@@ -1,8 +1,8 @@
 // "Проверка на имот": searches both registers and groups matches by cadastral parcel into a timeline.
 import { readableCase } from "../lib/textcase";
 import { normalizeQuery, parcelIdOf } from "../lib/search";
-import { addItem, getCachedUser, isWatched, removeItem } from "./watchlist";
-import { showToast } from "./shell";
+import { isWatched, onChange } from "./watchlist";
+import { syncFollowButton, toggleFollow } from "./follow";
 
 interface ClientRecord { n: string; d: string; o: string; r: string; m: string; s: string; k: string; t: string; c: string; h: string }
 interface Doc extends ClientRecord { reg: "act16" | "permits" }
@@ -13,6 +13,10 @@ const esc = (s: string) => s.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&
 const dateNum = (s: string) => { const [d, m, y] = s.split("."); return +y * 10000 + +m * 100 + +d; };
 const truncate = (s: string, n: number) => (s.length > n ? s.slice(0, n) + "…" : s);
 const fmt = (n: number) => n.toLocaleString("bg-BG").replace(/ /g, " ");
+const BELL = '<svg class="icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M6 16V11a6 6 0 0 1 12 0v5l2 2H4l2-2ZM10 21h4"/></svg>';
+// Building types from src/lib/classify.ts; the rest (networks, energy, other works) are called „строежът“.
+const BUILDINGS = new Set(["multi", "single", "office", "retail", "industrial", "public"]);
+const NEXT_HINT = "Има разрешение за строеж, но при нас няма Акт 16 за този имот. Получете имейл, когато в регистъра на НАГ се появи такъв — или друг нов документ за имота. Безплатно.";
 
 export function initCheck(): void {
   const form = document.getElementById("check-form") as HTMLFormElement;
@@ -27,25 +31,31 @@ export function initCheck(): void {
   let terms: string[] = [];
   let followKey = "";
 
+  const followBox = document.getElementById("check-follow-box")!;
+  const followHint = document.getElementById("check-follow-hint")!;
+  const defaultHint = followHint.innerHTML;
+
   // A saved search: the daily email digest reports new documents that match it.
   function syncFollow() {
-    follow.hidden = !followKey;
-    const on = !!followKey && isWatched("search", followKey);
-    follow.setAttribute("aria-pressed", String(on));
-    follow.querySelector("[data-follow-text]")!.textContent = on ? "Следите това търсене" : "Следи това търсене";
+    followBox.hidden = !followKey;
+    syncFollowButton(follow, followHint, defaultHint, !!followKey && isWatched("search", followKey));
+    // Parcels with a permit and no certificate: „Кажете ми, когато сградата получи Акт 16“.
+    results.querySelectorAll<HTMLButtonElement>("[data-parcel]").forEach((btn) => {
+      syncFollowButton(btn, btn.parentElement!.querySelector<HTMLElement>(".follow__hint"), NEXT_HINT, isWatched("parcel", btn.dataset.parcel!));
+    });
   }
   follow.addEventListener("click", async () => {
     if (!followKey) return;
-    if (isWatched("search", followKey)) await removeItem("search", followKey);
-    else {
-      await addItem({ kind: "search", key: followKey, label: `Търсене: „${followKey}“`, url: `/check/?q=${encodeURIComponent(followKey)}` });
-      showToast(
-        getCachedUser() ? "Ще ви известим по имейл за нови документи по това търсене." : "Търсенето е запазено на това устройство. Влезте, за да получавате известия по имейл.",
-        "/account/", getCachedUser() ? "Виж" : "Вход",
-      );
-    }
+    await toggleFollow({ kind: "search", key: followKey, label: `Търсене: „${followKey}“`, url: `/check/?q=${encodeURIComponent(followKey)}` });
     syncFollow();
   });
+  results.addEventListener("click", async (e) => {
+    const btn = (e.target as HTMLElement).closest<HTMLButtonElement>("[data-parcel]");
+    if (!btn) return;
+    await toggleFollow({ kind: "parcel", key: btn.dataset.parcel!, label: btn.dataset.label!, url: `/check/?q=${encodeURIComponent(btn.dataset.parcel!)}` });
+    syncFollow();
+  });
+  onChange(syncFollow);
 
   async function load(): Promise<Doc[]> {
     if (docs) return docs;
@@ -75,11 +85,18 @@ export function initCheck(): void {
       cert ? `<span class="badge badge--act16">✓ Акт 16 ${esc(cert.d.slice(-4))}</span>` : `<span class="badge badge--warn">Няма Акт 16 в регистъра</span>`,
     ].join("");
     const title = g.id.startsWith("doc:") ? "Документ без идентификатор КККР" : `Имот ${g.id}`;
+    // The alert for a parcel reports every new document on it, so it also brings the certificate.
+    const awaitsAct16 = !!permit && !cert && !g.id.startsWith("doc:");
+    const cta = `Кажете ми, когато ${BUILDINGS.has(permit?.t ?? "") ? "сградата" : "строежът"} получи Акт 16`;
+    const next = awaitsAct16 ? `<div class="parcel__next follow">
+        <button type="button" class="btn btn--dark btn--sm follow-btn" data-parcel="${esc(g.id)}" data-label="${esc(`Имот ${g.id}${place ? ` · ${place}` : ""}`)}" data-cta="${esc(cta)}" data-on="Следите имота" aria-pressed="false">${BELL}<span data-follow-text>${esc(cta)}</span></button>
+        <p class="follow__hint">${NEXT_HINT}</p>
+      </div>` : "";
     return `<article class="parcel">
       <header class="parcel__head">
         <div><div class="parcel__id">${esc(title)}</div><div class="parcel__place">${esc(place || "София")}</div></div>
         <div class="parcel__status">${statusHtml}</div>
-      </header>
+      </header>${next}
       <ol class="parcel__docs">${sorted.map((d) => `<li><a href="/register/${d.reg}/${esc(d.k)}/">
         <span class="parcel__bar parcel__bar--${d.reg}"></span>
         <span class="parcel__meta"><b>${d.reg === "act16" ? "Акт 16" : "Разрешение"} № ${esc(d.n)}</b> · ${esc(d.d)}${d.m ? ` · ${esc(truncate(d.m, 50))}` : ""}</span>
@@ -93,6 +110,7 @@ export function initCheck(): void {
     results.insertAdjacentHTML("beforeend", slice.map(renderGroup).join(""));
     shown += slice.length;
     more.hidden = shown >= groups.length;
+    syncFollow();
   }
 
   async function search(q: string) {
