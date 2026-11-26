@@ -31,6 +31,11 @@ for (const [id, key] of [['act16', 'certificates'], ['permits', 'permits']]) {
   assert.equal(d('link[rel=canonical]').attr('href'), `https://akt16.org/register/${id}/${slug}/`);
   assert.equal(d('h1').length, 1);
   assert(d('script[type="application/ld+json"]').map((_, s) => JSON.parse(d(s).text())['@type']).get().includes('GovernmentPermit'));
+  // The follow button on a document says what it does: email for the parcel, or only a bookmark without a cadastral id.
+  const follow = d('[data-follow-box]');
+  assert.equal(follow.length, 1);
+  assert(follow.find('[data-follow]').attr('data-alerts') === '1' ? /^Получете имейл/.test(follow.find('[data-follow-hint]').text().trim()) : /не изпращаме известия/.test(follow.text()));
+  assert.equal($('#izvestiya').length, 1, `/register/${id}/ explains the email alerts`);
 
   const noSlash = await get(`/register/${id}/${slug}`);
   assert.equal(noSlash.status, 301, 'Document URLs without a trailing slash redirect');
@@ -48,4 +53,20 @@ for (const path of ['/check', '/blog/kakvo-e-akt-16', '/company']) {
 for (const path of ['/sitemap-index.xml', '/robots.txt', '/api/act16.json']) assert.equal((await get(path)).status, 200, path);
 const me = await (await get('/api/auth/me/')).json();
 assert('user' in me || me.error === 'accounts_unavailable');
+
+// Interest form on /business/. Only requests that store nothing: a filled honeypot, invalid input, a foreign origin.
+assert.equal((await get('/business/')).status, 200);
+const lead = (body, headers = {}) => fetch(`${base}/api/business-lead/`, { method: 'POST', redirect: 'manual', headers: { origin: new URL(base).origin, ...headers }, body });
+const form = (fields) => [new URLSearchParams(fields).toString(), { 'content-type': 'application/x-www-form-urlencoded' }];
+const fields = { email: 'check-worker@example.com', business_type: 'broker', price_range: 'none', consent: 'on' };
+const honeypot = await lead(...form({ ...fields, website: 'https://example.com' }));
+assert.equal(honeypot.status, 303);
+assert.equal(honeypot.headers.get('location'), '/business/#lead-ok');
+const invalidForm = await lead(...form({ ...fields, consent: '' }));
+assert.equal(invalidForm.headers.get('location'), '/business/#lead-invalid');
+const invalidJson = await lead(JSON.stringify({ ...fields, email: 'not-an-email', consent: true }), { 'content-type': 'application/json' });
+assert.equal(invalidJson.status, 400);
+assert.equal((await invalidJson.json()).error, 'invalid_input');
+const foreign = await lead(new URLSearchParams(fields).toString(), { 'content-type': 'application/x-www-form-urlencoded', origin: 'https://example.com' });
+assert.equal(foreign.status, 403);
 console.log(`Worker checks passed against ${base}.`);

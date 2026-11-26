@@ -45,8 +45,24 @@ akt16.org is the first organic result for "акт 16". Google offers these refin
 
 `tests/seo.test.ts` checks these guides' title and description lengths, FAQ count and links to the register, `/check/` and `/map/`, that every `/blog/` link and anchor between guides resolves, and that each new guide is linked from at least two others. `check-seo.mjs` checks that they are built, in the sitemap, on the blog index and in `llms.txt`, and that `#…` links to guides point at an existing id. Word counts: `wc -w` in the C locale skips Cyrillic words, so count with `LC_ALL=C.UTF-8`.
 
+## November 2026 — email alerts made visible, „За бизнеса“
+
+Only 9 accounts for ~2,900 visits a month: the follow button said „Следи“ and nothing mentioned email.
+
+| Change | Where |
+| --- | --- |
+| Button „Извести ме по имейл“ with one line saying what arrives, per kind of page | `FollowButton.astro`; state-dependent text in `src/scripts/follow.ts` |
+| Permit without a certificate on `/check/` → „Кажете ми, когато сградата получи Акт 16“ (follows the parcel) | `src/scripts/check.ts` |
+| Explainer (one email a day, free, one-click unsubscribe) on the home page (`#izvestiya`) and both register pages | `AlertsExplainer.astro` |
+| `/business/`: planned business plan, clearly not available yet, with an interest form | `src/pages/business.astro`, `src/lib/leads.ts`, `src/lib/business.ts` |
+
+Copy rules: alerts are a daily digest (never "instant"); a document without a cadastral id cannot be matched by the digest, so its button only saves it and promises no email; `/business/` promises no price and no date. Analytics events `follow_click` {kind, signed_in}, `alert_signup` {kind} and `business_lead` carry no email, item name or search text.
+
+`check-seo.mjs` checks the button text and hint on district, neighbourhood and company pages, the explainer, and `/business/` (title ≤ 60, description 120–155, sitemap, form fields, footer and `/data/` links, privacy section). `check-worker.mjs` checks the document page button and the form endpoint with requests that store nothing.
+
 ## Deployment and Search Console
 
+0. D1 migrations are not applied by the deploy (the Cloudflare build runs `npm run build` and `wrangler deploy` only). Apply a new migration by hand first: `npx wrangler d1 migrations apply akt16 --remote`.
 1. Enable **SSL/TLS → Edge Certificates → Always Use HTTPS** for `akt16.org` in Cloudflare. GSC still lists `http://` URLs. The worker middleware redirects HTTP for on-demand pages, but static pages are served directly by Cloudflare, so only the dashboard setting covers every URL.
 2. After deployment, resubmit `https://akt16.org/sitemap-index.xml`. It now includes the on-demand register pages, every document (with its issue date as `lastmod`), districts, district lists, neighbourhoods, companies and guides.
 3. In URL Inspection, test one legacy URL such as `/register/permits/?region=Люлин` and confirm the 301 to `/region/lyulin/permits/`.

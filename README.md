@@ -26,7 +26,8 @@ data/
     cache.json         ← Кеш на заявките към Nominatim
     points.json        ← Координати по запис (за картата)
   changes.json         ← Кои документи е добавил всеки скрейп (60 дни) — за имейл известията
-migrations/            ← D1 схема: профили, сесии, следени обекти (0001), имейли и известия (0002)
+migrations/            ← D1 схема: профили, сесии, следени обекти (0001), имейли и известия (0002),
+                         формуляр „За бизнеса“ (0003)
 src/
   content/blog/        ← Статии (Markdown) с FAQ във frontmatter
   content/intl/        ← Ръководства на английски и руски (/en/, /ru/)
@@ -52,6 +53,8 @@ scripts/build-extension.mjs ← Пакетира extension/ в public/downloads/
     account/                   ← Вход, регистрация, следени обекти; verify, forgot, reset
     api/auth/*, api/watchlist/* ← API за профили (D1)
     api/alerts/*               ← Тестово известие и отписване с един клик
+    business.astro             ← „За бизнеса“: планиран бизнес план (още не се продава) + формуляр за интерес
+    api/business-lead.ts       ← Приема формуляра (JSON или обикновен POST без JavaScript) → таблица business_leads
     api/lookup.ts              ← Публично API за разширението (CORS, кеш 1 ч)
     extension.astro            ← Страница на разширението за браузър
   worker.ts            ← Worker entry: Astro за заявките + cron за дневните известия
@@ -167,7 +170,16 @@ npx wrangler d1 migrations apply akt16 --local
 npx wrangler d1 migrations apply akt16 --remote
 ```
 
-Без профил „Следени“ работи в localStorage на браузъра; след вход списъкът се слива с профила. Паролите се хешират с PBKDF2 (100 000 итерации). На безплатния план на Workers лимитът е 10 ms CPU на заявка — ако вход/регистрация връщат грешка 1102, намалете `PBKDF2_ITERATIONS` в `src/lib/auth.ts` (старите хешове продължават да работят).
+Миграциите **не** се прилагат автоматично при деплой (Cloudflare пуска само `npm run build` и `wrangler deploy`).
+При нова миграция я приложете ръчно с командата по-горе, преди да слеете кода, който я използва. Миграция 0003
+е съвместима със стария код; докато не е приложена, формулярът на `/business/` отговаря с „временно не работи“,
+а всичко останало работи както досега.
+
+Без профил „Следени“ работи в localStorage на браузъра; след вход списъкът се слива с профила. Бутонът
+„Извести ме по имейл“ (`FollowButton.astro`, `src/scripts/follow.ts`) казва какво следва според посетителя: гост
+(нужен е профил), непотвърден имейл, изключени известия или всичко е наред. Обектът, който гост е натиснал, се
+помни (`akt16:follow-intent`), изпраща се с регистрацията (`follow` в `POST /api/auth/register/`) и се добавя към
+новия профил. Паролите се хешират с PBKDF2 (100 000 итерации). На безплатния план на Workers лимитът е 10 ms CPU на заявка — ако вход/регистрация връщат грешка 1102, намалете `PBKDF2_ITERATIONS` в `src/lib/auth.ts` (старите хешове продължават да работят).
 
 ## Имейли и известия (Cloudflare Email Service)
 
@@ -198,6 +210,18 @@ npx wrangler d1 migrations apply akt16 --remote
 За ръчно пускане на cron локално: `curl "http://localhost:8787/cdn-cgi/handler/scheduled?cron=20+10+*+*+*"`
 (при Astro заявката минава през assets router-а, затова за този тест пуснете `wrangler dev -c` с копие на
 `dist/server/wrangler.json` без `assets`).
+
+## „За бизнеса“ (формуляр за интерес)
+
+`/business/` описва **планиран** бизнес план — нищо не се продава. Формулярът записва в D1 таблица
+`business_leads` (уникален имейл: повторно изпращане обновява реда). `src/lib/leads.ts` съдържа валидирането,
+honeypot полето `website`, лимита (5 изпращания на час от един адрес, през `auth_attempts`), известието до
+`info@akt16.org` за всеки нов запис и изтриването след 12 месеца (при всяко изпращане и в дневния cron).
+
+```bash
+# Преглед на заявките
+npx wrangler d1 execute akt16 --remote --command "SELECT * FROM business_leads ORDER BY updated_at DESC"
+```
 
 ## Разширение за браузър
 
